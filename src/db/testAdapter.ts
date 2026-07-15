@@ -5,19 +5,20 @@ import { DbAdapter } from './adapter';
 export function createTestDb(): DbAdapter {
   const db = new Database(':memory:');
   return {
-    run(sql, params = []) {
-      db.prepare(sql).run(...(params as never[]));
+    async run(sql, params = []) {
+      const info = db.prepare(sql).run(...(params as never[]));
+      return { lastInsertRowId: Number(info.lastInsertRowid) };
     },
-    all<T>(sql: string, params: unknown[] = []) {
+    async all<T>(sql: string, params: unknown[] = []) {
       return db.prepare(sql).all(...(params as never[])) as T[];
     },
-    first<T>(sql: string, params: unknown[] = []) {
+    async first<T>(sql: string, params: unknown[] = []) {
       return db.prepare(sql).get(...(params as never[])) as T | undefined;
     },
-    userVersion() {
+    async userVersion() {
       return (db.pragma('user_version', { simple: true }) as number) ?? 0;
     },
-    setUserVersion(v) {
+    async setUserVersion(v) {
       db.pragma(`user_version = ${v}`);
     },
   };

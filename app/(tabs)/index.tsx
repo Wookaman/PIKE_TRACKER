@@ -5,6 +5,7 @@ import { DateNav } from '../../src/components/DateNav';
 import { MacroSummary } from '../../src/components/MacroSummary';
 import { getDb } from '../../src/db';
 import { DiaryEntryRow, Meal } from '../../src/db/dao';
+import { useDbQuery } from '../../src/db/useDbQuery';
 import { sumMacros } from '../../src/lib/nutrition';
 import { useAppStore } from '../../src/state/appStore';
 import { BevelButton } from '../../src/ui/BevelButton';
@@ -39,13 +40,19 @@ function MealWindow({ meal, entries }: { meal: { id: Meal; title: string }; entr
               subtitle={`${e.qty} ${e.unitLabel} · ${Math.round(e.kcal)} kcal`}
               right={<Text style={[data, dim]}>P{Math.round(e.protein)}</Text>}
               onPress={() =>
-                router.push({ pathname: '/food-detail', params: { entryId: String(e.id) } })
+                router.push({
+                  pathname: e.recipeId ? '/recipe-log' : '/food-detail',
+                  params: { entryId: String(e.id) },
+                })
               }
               onLongPress={() =>
                 confirmDelete(`Delete ${e.name}?`, () => {
-                  getDb().diary.remove(e.id);
-                  haptics.warn();
-                  bump();
+                  getDb()
+                    .diary.remove(e.id)
+                    .then(() => {
+                      haptics.warn();
+                      bump();
+                    });
                 })
               }
             />
@@ -67,8 +74,8 @@ export default function DiaryScreen() {
   const dateKey = useAppStore((s) => s.dateKey);
   const tick = useAppStore((s) => s.tick);
 
-  const entries = useMemo(() => getDb().diary.forDate(dateKey), [dateKey, tick]);
-  const kcalGoal = useMemo(() => getDb().settings.getNum('kcalGoal', 2200), [tick]);
+  const entries = useDbQuery((db) => db.diary.forDate(dateKey), [dateKey, tick]) ?? [];
+  const kcalGoal = useDbQuery((db) => db.settings.getNum('kcalGoal', 2200), [tick]) ?? 2200;
   const totals = useMemo(() => sumMacros(entries), [entries]);
 
   return (

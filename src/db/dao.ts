@@ -127,10 +127,10 @@ function toFoodRow(r: RawFood): FoodRow {
 
 export function foodsDao(db: DbAdapter) {
   return {
-    search(q: string, limit = 50): FoodRow[] {
+    async search(q: string, limit = 50): Promise<FoodRow[]> {
       const needle = `%${q.toLowerCase()}%`;
       const prefix = `${q.toLowerCase()}%`;
-      const rows = db.all<RawFood>(
+      const rows = await db.all<RawFood>(
         `SELECT ${FOOD_COLS} FROM foods
          WHERE deleted = 0 AND (LOWER(name) LIKE ? OR LOWER(COALESCE(brand,'')) LIKE ?)
          ORDER BY (LOWER(name) LIKE ?) DESC, name
@@ -140,13 +140,13 @@ export function foodsDao(db: DbAdapter) {
       return rows.map(toFoodRow);
     },
 
-    getById(id: number): FoodRow | undefined {
-      const row = db.first<RawFood>(`SELECT ${FOOD_COLS} FROM foods WHERE id = ?`, [id]);
+    async getById(id: number): Promise<FoodRow | undefined> {
+      const row = await db.first<RawFood>(`SELECT ${FOOD_COLS} FROM foods WHERE id = ?`, [id]);
       return row ? toFoodRow(row) : undefined;
     },
 
-    insert(f: FoodInput): number {
-      db.run(
+    async insert(f: FoodInput): Promise<number> {
+      const result = await db.run(
         `INSERT INTO foods (name, brand, source, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -163,11 +163,11 @@ export function foodsDao(db: DbAdapter) {
           f.per100.sodiumMg ?? null,
         ],
       );
-      return lastId(db);
+      return result.lastInsertRowId;
     },
 
-    update(id: number, f: FoodInput): void {
-      db.run(
+    async update(id: number, f: FoodInput): Promise<void> {
+      await db.run(
         `UPDATE foods SET name=?, brand=?, source=?, barcode=?, kcal_100g=?, protein_100g=?, carbs_100g=?, fat_100g=?, fiber_100g=?, sugar_100g=?, sodium_mg_100g=?
          WHERE id=?`,
         [
@@ -187,21 +187,21 @@ export function foodsDao(db: DbAdapter) {
       );
     },
 
-    softDelete(id: number): void {
-      db.run(`UPDATE foods SET deleted = 1 WHERE id = ?`, [id]);
+    async softDelete(id: number): Promise<void> {
+      await db.run(`UPDATE foods SET deleted = 1 WHERE id = ?`, [id]);
     },
 
-    servingsFor(foodId: number): Serving[] {
+    async servingsFor(foodId: number): Promise<Serving[]> {
       return db.all<{ label: string; grams: number }>(
         `SELECT label, grams FROM food_servings WHERE food_id = ? ORDER BY id`,
         [foodId],
       );
     },
 
-    setServings(foodId: number, servings: Serving[]): void {
-      db.run(`DELETE FROM food_servings WHERE food_id = ?`, [foodId]);
+    async setServings(foodId: number, servings: Serving[]): Promise<void> {
+      await db.run(`DELETE FROM food_servings WHERE food_id = ?`, [foodId]);
       for (const s of servings) {
-        db.run(`INSERT INTO food_servings (food_id, label, grams) VALUES (?, ?, ?)`, [
+        await db.run(`INSERT INTO food_servings (food_id, label, grams) VALUES (?, ?, ?)`, [
           foodId,
           s.label,
           s.grams,
@@ -213,33 +213,32 @@ export function foodsDao(db: DbAdapter) {
 
 export function recipesDao(db: DbAdapter) {
   return {
-    list(): RecipeRow[] {
-      return db
-        .all<{ id: number; name: string; servings: number; notes: string | null }>(
-          `SELECT id, name, servings, notes FROM recipes WHERE deleted = 0 ORDER BY name`,
-        )
-        .map((r) => ({ ...r, notes: r.notes ?? undefined }));
+    async list(): Promise<RecipeRow[]> {
+      const rows = await db.all<{ id: number; name: string; servings: number; notes: string | null }>(
+        `SELECT id, name, servings, notes FROM recipes WHERE deleted = 0 ORDER BY name`,
+      );
+      return rows.map((r) => ({ ...r, notes: r.notes ?? undefined }));
     },
 
-    getById(id: number): RecipeRow | undefined {
-      const r = db.first<{ id: number; name: string; servings: number; notes: string | null }>(
+    async getById(id: number): Promise<RecipeRow | undefined> {
+      const r = await db.first<{ id: number; name: string; servings: number; notes: string | null }>(
         `SELECT id, name, servings, notes FROM recipes WHERE id = ?`,
         [id],
       );
       return r ? { ...r, notes: r.notes ?? undefined } : undefined;
     },
 
-    insert(r: { name: string; servings: number; notes?: string }): number {
-      db.run(`INSERT INTO recipes (name, servings, notes) VALUES (?, ?, ?)`, [
+    async insert(r: { name: string; servings: number; notes?: string }): Promise<number> {
+      const result = await db.run(`INSERT INTO recipes (name, servings, notes) VALUES (?, ?, ?)`, [
         r.name,
         r.servings,
         r.notes ?? null,
       ]);
-      return lastId(db);
+      return result.lastInsertRowId;
     },
 
-    update(id: number, r: { name: string; servings: number; notes?: string }): void {
-      db.run(`UPDATE recipes SET name=?, servings=?, notes=? WHERE id=?`, [
+    async update(id: number, r: { name: string; servings: number; notes?: string }): Promise<void> {
+      await db.run(`UPDATE recipes SET name=?, servings=?, notes=? WHERE id=?`, [
         r.name,
         r.servings,
         r.notes ?? null,
@@ -247,12 +246,12 @@ export function recipesDao(db: DbAdapter) {
       ]);
     },
 
-    softDelete(id: number): void {
-      db.run(`UPDATE recipes SET deleted = 1 WHERE id = ?`, [id]);
+    async softDelete(id: number): Promise<void> {
+      await db.run(`UPDATE recipes SET deleted = 1 WHERE id = ?`, [id]);
     },
 
-    itemsFor(recipeId: number): RecipeItemRow[] {
-      const rows = db.all<RawFood & { item_id: number; grams: number; food_id: number }>(
+    async itemsFor(recipeId: number): Promise<RecipeItemRow[]> {
+      const rows = await db.all<RawFood & { item_id: number; grams: number; food_id: number }>(
         `SELECT ri.id AS item_id, ri.grams AS grams, ri.food_id AS food_id, ${FOOD_COLS
           .split(', ')
           .map((c) => `f.${c}`)
@@ -270,10 +269,10 @@ export function recipesDao(db: DbAdapter) {
       }));
     },
 
-    setItems(recipeId: number, items: { foodId: number; grams: number }[]): void {
-      db.run(`DELETE FROM recipe_items WHERE recipe_id = ?`, [recipeId]);
+    async setItems(recipeId: number, items: { foodId: number; grams: number }[]): Promise<void> {
+      await db.run(`DELETE FROM recipe_items WHERE recipe_id = ?`, [recipeId]);
       for (const i of items) {
-        db.run(`INSERT INTO recipe_items (recipe_id, food_id, grams) VALUES (?, ?, ?)`, [
+        await db.run(`INSERT INTO recipe_items (recipe_id, food_id, grams) VALUES (?, ?, ?)`, [
           recipeId,
           i.foodId,
           i.grams,
@@ -301,8 +300,8 @@ export function diaryDao(db: DbAdapter) {
   }
 
   return {
-    forDate(dateKey: string): DiaryEntryRow[] {
-      const rows = db.all<RawEntry>(
+    async forDate(dateKey: string): Promise<DiaryEntryRow[]> {
+      const rows = await db.all<RawEntry>(
         `SELECT d.id, d.date, d.meal, d.food_id, d.recipe_id, d.grams, d.qty, d.unit_label,
                 d.kcal, d.protein, d.carbs, d.fat,
                 COALESCE(f.name, r.name) AS name
@@ -330,8 +329,8 @@ export function diaryDao(db: DbAdapter) {
       }));
     },
 
-    add(e: NewDiaryEntry): number {
-      db.run(
+    async add(e: NewDiaryEntry): Promise<number> {
+      const result = await db.run(
         `INSERT INTO diary_entries (date, meal, food_id, recipe_id, grams, qty, unit_label, kcal, protein, carbs, fat)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -348,10 +347,10 @@ export function diaryDao(db: DbAdapter) {
           e.fat,
         ],
       );
-      return lastId(db);
+      return result.lastInsertRowId;
     },
 
-    update(
+    async update(
       id: number,
       patch: {
         meal?: Meal;
@@ -363,18 +362,18 @@ export function diaryDao(db: DbAdapter) {
         carbs: number;
         fat: number;
       },
-    ): void {
+    ): Promise<void> {
       if (patch.meal !== undefined) {
-        db.run(`UPDATE diary_entries SET meal=? WHERE id=?`, [patch.meal, id]);
+        await db.run(`UPDATE diary_entries SET meal=? WHERE id=?`, [patch.meal, id]);
       }
-      db.run(
+      await db.run(
         `UPDATE diary_entries SET grams=?, qty=?, unit_label=?, kcal=?, protein=?, carbs=?, fat=? WHERE id=?`,
         [patch.grams, patch.qty, patch.unitLabel, patch.kcal, patch.protein, patch.carbs, patch.fat, id],
       );
     },
 
-    remove(id: number): void {
-      db.run(`DELETE FROM diary_entries WHERE id = ?`, [id]);
+    async remove(id: number): Promise<void> {
+      await db.run(`DELETE FROM diary_entries WHERE id = ?`, [id]);
     },
   };
 }
@@ -401,50 +400,50 @@ export function exercisesDao(db: DbAdapter) {
   const COLS = 'id, name, category, primary_muscles, secondary_muscles, is_custom';
 
   return {
-    list(): ExerciseRow[] {
-      return db
-        .all<RawExercise>(`SELECT ${COLS} FROM exercises WHERE deleted = 0 ORDER BY name`)
-        .map(toRow);
+    async list(): Promise<ExerciseRow[]> {
+      const rows = await db.all<RawExercise>(
+        `SELECT ${COLS} FROM exercises WHERE deleted = 0 ORDER BY name`,
+      );
+      return rows.map(toRow);
     },
 
-    search(q: string, limit = 50): ExerciseRow[] {
+    async search(q: string, limit = 50): Promise<ExerciseRow[]> {
       const needle = `%${q.toLowerCase()}%`;
       const prefix = `${q.toLowerCase()}%`;
-      return db
-        .all<RawExercise>(
-          `SELECT ${COLS} FROM exercises
-           WHERE deleted = 0 AND LOWER(name) LIKE ?
-           ORDER BY (LOWER(name) LIKE ?) DESC, name LIMIT ?`,
-          [needle, prefix, limit],
-        )
-        .map(toRow);
+      const rows = await db.all<RawExercise>(
+        `SELECT ${COLS} FROM exercises
+         WHERE deleted = 0 AND LOWER(name) LIKE ?
+         ORDER BY (LOWER(name) LIKE ?) DESC, name LIMIT ?`,
+        [needle, prefix, limit],
+      );
+      return rows.map(toRow);
     },
 
-    getById(id: number): ExerciseRow | undefined {
-      const r = db.first<RawExercise>(`SELECT ${COLS} FROM exercises WHERE id = ?`, [id]);
+    async getById(id: number): Promise<ExerciseRow | undefined> {
+      const r = await db.first<RawExercise>(`SELECT ${COLS} FROM exercises WHERE id = ?`, [id]);
       return r ? toRow(r) : undefined;
     },
 
-    insertCustom(e: {
+    async insertCustom(e: {
       name: string;
       category: ExerciseCategory;
       primary: MuscleId[];
       secondary: MuscleId[];
-    }): number {
+    }): Promise<number> {
       return insertExercise(db, e, true);
     },
 
-    insertSeed(e: {
+    async insertSeed(e: {
       name: string;
       category: ExerciseCategory;
       primary: MuscleId[];
       secondary: MuscleId[];
-    }): number {
+    }): Promise<number> {
       return insertExercise(db, e, false);
     },
 
-    softDelete(id: number): void {
-      db.run(`UPDATE exercises SET deleted = 1 WHERE id = ?`, [id]);
+    async softDelete(id: number): Promise<void> {
+      await db.run(`UPDATE exercises SET deleted = 1 WHERE id = ?`, [id]);
     },
   };
 }
@@ -463,8 +462,8 @@ export function workoutsDao(db: DbAdapter) {
   }
 
   return {
-    forDate(dateKey: string): WorkoutEntryRow[] {
-      const rows = db.all<RawWorkout>(
+    async forDate(dateKey: string): Promise<WorkoutEntryRow[]> {
+      const rows = await db.all<RawWorkout>(
         `SELECT w.id, w.date, w.exercise_id, w.sets, w.notes,
                 e.name, e.category, e.primary_muscles, e.secondary_muscles
          FROM workout_entries w JOIN exercises e ON e.id = w.exercise_id
@@ -484,63 +483,59 @@ export function workoutsDao(db: DbAdapter) {
       }));
     },
 
-    add(e: { date: string; exerciseId: number; sets: WorkoutSets; notes?: string }): number {
-      db.run(`INSERT INTO workout_entries (date, exercise_id, sets, notes) VALUES (?, ?, ?, ?)`, [
-        e.date,
-        e.exerciseId,
-        JSON.stringify(e.sets),
-        e.notes ?? null,
-      ]);
-      return lastId(db);
+    async add(e: { date: string; exerciseId: number; sets: WorkoutSets; notes?: string }): Promise<number> {
+      const result = await db.run(
+        `INSERT INTO workout_entries (date, exercise_id, sets, notes) VALUES (?, ?, ?, ?)`,
+        [e.date, e.exerciseId, JSON.stringify(e.sets), e.notes ?? null],
+      );
+      return result.lastInsertRowId;
     },
 
-    update(id: number, patch: { sets: WorkoutSets; notes?: string }): void {
-      db.run(`UPDATE workout_entries SET sets=?, notes=? WHERE id=?`, [
+    async update(id: number, patch: { sets: WorkoutSets; notes?: string }): Promise<void> {
+      await db.run(`UPDATE workout_entries SET sets=?, notes=? WHERE id=?`, [
         JSON.stringify(patch.sets),
         patch.notes ?? null,
         id,
       ]);
     },
 
-    remove(id: number): void {
-      db.run(`DELETE FROM workout_entries WHERE id = ?`, [id]);
+    async remove(id: number): Promise<void> {
+      await db.run(`DELETE FROM workout_entries WHERE id = ?`, [id]);
     },
   };
 }
 
 export function settingsDao(db: DbAdapter) {
   return {
-    get(key: string): string | undefined {
-      return db.first<{ value: string }>(`SELECT value FROM settings WHERE key = ?`, [key])?.value;
+    async get(key: string): Promise<string | undefined> {
+      const row = await db.first<{ value: string }>(`SELECT value FROM settings WHERE key = ?`, [key]);
+      return row?.value;
     },
 
-    set(key: string, value: string): void {
-      db.run(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [key, value]);
+    async set(key: string, value: string): Promise<void> {
+      await db.run(
+        `INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        [key, value],
+      );
     },
 
-    getNum(key: string, fallback: number): number {
-      const raw = this.get(key);
+    async getNum(key: string, fallback: number): Promise<number> {
+      const raw = await this.get(key);
       const n = raw === undefined ? NaN : Number(raw);
       return Number.isFinite(n) ? n : fallback;
     },
   };
 }
 
-function insertExercise(
+async function insertExercise(
   db: DbAdapter,
   e: { name: string; category: ExerciseCategory; primary: MuscleId[]; secondary: MuscleId[] },
   isCustom: boolean,
-): number {
-  db.run(
+): Promise<number> {
+  const result = await db.run(
     `INSERT INTO exercises (name, category, primary_muscles, secondary_muscles, is_custom)
      VALUES (?, ?, ?, ?, ?)`,
     [e.name, e.category, JSON.stringify(e.primary), JSON.stringify(e.secondary), isCustom ? 1 : 0],
   );
-  return lastId(db);
-}
-
-function lastId(db: DbAdapter): number {
-  const row = db.first<{ id: number }>(`SELECT last_insert_rowid() AS id`);
-  if (!row) throw new Error('last_insert_rowid failed');
-  return row.id;
+  return result.lastInsertRowId;
 }

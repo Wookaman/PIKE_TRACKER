@@ -20,8 +20,8 @@ export interface Db {
 }
 
 /** Migrate + wire DAOs over any adapter. Pure of native imports. */
-export function buildDb(adapter: DbAdapter): Db {
-  migrate(adapter);
+export async function buildDb(adapter: DbAdapter): Promise<Db> {
+  await migrate(adapter);
   return {
     adapter,
     foods: foodsDao(adapter),

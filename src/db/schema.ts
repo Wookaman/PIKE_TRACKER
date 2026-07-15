@@ -85,12 +85,12 @@ const MIGRATIONS: string[][] = [
   ],
 ];
 
-export function migrate(db: DbAdapter): void {
-  const current = db.userVersion();
+export async function migrate(db: DbAdapter): Promise<void> {
+  const current = await db.userVersion();
   for (let v = current; v < MIGRATIONS.length; v++) {
     for (const sql of MIGRATIONS[v]) {
-      db.run(sql);
+      await db.run(sql);
     }
   }
-  db.setUserVersion(MIGRATIONS.length);
+  await db.setUserVersion(MIGRATIONS.length);
 }

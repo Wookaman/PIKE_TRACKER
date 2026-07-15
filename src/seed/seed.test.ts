@@ -70,24 +70,24 @@ describe('seed exercises', () => {
 });
 
 describe('seedIfEmpty', () => {
-  it('populates an empty database and is idempotent', () => {
-    const db = buildDb(createTestDb());
-    seedIfEmpty(db);
-    const foodCount = db.foods.search('', 10000).length;
-    const exerciseCount = db.exercises.list().length;
+  it('populates an empty database and is idempotent', async () => {
+    const db = await buildDb(createTestDb());
+    await seedIfEmpty(db);
+    const foodCount = (await db.foods.search('', 10000)).length;
+    const exerciseCount = (await db.exercises.list()).length;
     expect(foodCount).toBe(SEED_FOODS.length);
     expect(exerciseCount).toBe(SEED_EXERCISES.length);
 
-    seedIfEmpty(db);
-    expect(db.foods.search('', 10000).length).toBe(foodCount);
-    expect(db.exercises.list().length).toBe(exerciseCount);
+    await seedIfEmpty(db);
+    expect((await db.foods.search('', 10000)).length).toBe(foodCount);
+    expect((await db.exercises.list()).length).toBe(exerciseCount);
   });
 
-  it('attaches servings to seeded foods', () => {
-    const db = buildDb(createTestDb());
-    seedIfEmpty(db);
-    const [egg] = db.foods.search('egg, whole');
+  it('attaches servings to seeded foods', async () => {
+    const db = await buildDb(createTestDb());
+    await seedIfEmpty(db);
+    const [egg] = await db.foods.search('egg, whole');
     expect(egg).toBeTruthy();
-    expect(db.foods.servingsFor(egg.id).length).toBeGreaterThanOrEqual(1);
+    expect((await db.foods.servingsFor(egg.id)).length).toBeGreaterThanOrEqual(1);
   });
 });

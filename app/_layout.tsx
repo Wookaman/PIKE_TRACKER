@@ -3,7 +3,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { initDb } from '../src/db';
-import { ensureWebIsolation } from '../src/db/webIsolation';
 import { c, label } from '../src/ui/theme';
 
 export default function RootLayout() {
@@ -11,8 +10,6 @@ export default function RootLayout() {
   const [bootError, setBootError] = useState<string | undefined>();
 
   useEffect(() => {
-    if (ensureWebIsolation() !== 'ready') return;
-    // 'reloading': the page refreshes itself once the service worker installs.
     initDb()
       .then(() => setDbReady(true))
       .catch((e: unknown) => setBootError(String(e)));
@@ -44,6 +41,10 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="food-search" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="food-detail" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="recipe-edit" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="recipe-log" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );
