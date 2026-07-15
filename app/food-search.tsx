@@ -5,7 +5,9 @@ import { View } from 'react-native';
 import { getDb } from '../src/db';
 import { Meal } from '../src/db/dao';
 import { useDbQuery } from '../src/db/useDbQuery';
+import { OffFood } from '../src/lib/off';
 import { Per100 } from '../src/lib/types';
+import { searchOff } from '../src/services/offSearch';
 import { usePickStore } from '../src/state/pickStore';
 import { BevelButton } from '../src/ui/BevelButton';
 import { ListRow } from '../src/ui/ListRow';
@@ -64,6 +66,33 @@ export default function FoodSearchScreen() {
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<DraftFood>(EMPTY_DRAFT);
+  const [online, setOnline] = useState<'idle' | 'loading' | 'error' | OffFood[]>('idle');
+
+  const setQuery = (v: string) => {
+    setQ(v);
+    setOnline('idle');
+  };
+
+  const runOnlineSearch = async () => {
+    setOnline('loading');
+    try {
+      setOnline(await searchOff(q.trim()));
+    } catch {
+      setOnline('error');
+    }
+  };
+
+  const logOffFood = async (f: OffFood) => {
+    const db = getDb();
+    const id = await db.foods.insert({
+      name: f.name,
+      brand: f.brand,
+      barcode: f.barcode,
+      source: 'off',
+      per100: f.per100,
+    });
+    openDetail(id);
+  };
 
   const results = useDbQuery((db) => db.foods.search(q, 30), [q]) ?? [];
   const recipes =
@@ -109,7 +138,7 @@ export default function FoodSearchScreen() {
   return (
     <Screen>
       <Window title={picking ? 'PICK INGREDIENT' : 'FIND FOOD'} onClose={() => router.back()}>
-        <XPTextInput autoFocus placeholder="C:\> search foods_" value={q} onChangeText={setQ} />
+        <XPTextInput autoFocus placeholder="C:\> search foods_" value={q} onChangeText={setQuery} />
       </Window>
 
       {creating ? (
@@ -174,6 +203,39 @@ export default function FoodSearchScreen() {
           <Text style={dim}>NO MATCHES — CREATE IT ABOVE</Text>
         )}
       </Window>
+
+      {q.trim().length > 1 ? (
+        online === 'idle' ? (
+          <BevelButton title="SEARCH ONLINE" small onPress={runOnlineSearch} />
+        ) : online === 'loading' ? (
+          <Window title="ONLINE">
+            <Text style={dim}>DIALING OPEN FOOD FACTS…</Text>
+          </Window>
+        ) : online === 'error' ? (
+          <Window title="ONLINE">
+            <Text style={dim}>ONLINE SEARCH UNAVAILABLE</Text>
+            <BevelButton title="RETRY" small onPress={runOnlineSearch} style={{ marginTop: sp.s }} />
+          </Window>
+        ) : (
+          <Window title={`ONLINE (${online.length})`}>
+            {online.length > 0 ? (
+              <SunkenPanel>
+                {online.map((f, i) => (
+                  <ListRow
+                    key={`${f.barcode ?? f.name}-${i}`}
+                    title={f.brand ? `${f.name} — ${f.brand}` : f.name}
+                    subtitle={`${Math.round(f.per100.kcal)} kcal / 100 g`}
+                    right={<Text style={[label, { fontSize: 10, color: '#55555c' }]}>WEB</Text>}
+                    onPress={() => logOffFood(f)}
+                  />
+                ))}
+              </SunkenPanel>
+            ) : (
+              <Text style={dim}>NOTHING FOUND ONLINE</Text>
+            )}
+          </Window>
+        )
+      ) : null}
     </Screen>
   );
 }
