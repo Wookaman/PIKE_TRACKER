@@ -1,9 +1,13 @@
-import { openDatabaseSync, SQLiteDatabase } from 'expo-sqlite';
+import { openDatabaseAsync, SQLiteDatabase } from 'expo-sqlite';
 import { DbAdapter } from './adapter';
 
-/** expo-sqlite (device + web) implementation of the adapter. */
-export function createExpoDb(name = 'pike.db'): DbAdapter {
-  const db: SQLiteDatabase = openDatabaseSync(name);
+/**
+ * expo-sqlite (device + web) implementation of the adapter.
+ * Opened async: on web the sync channel spin-waits with a short budget, so
+ * the worker must be warm before any *Sync call — async open guarantees that.
+ */
+export async function createExpoDb(name = 'pike.db'): Promise<DbAdapter> {
+  const db: SQLiteDatabase = await openDatabaseAsync(name);
   return {
     run(sql, params = []) {
       db.runSync(sql, params as never[]);

@@ -6,12 +6,25 @@ export type { Db } from './build';
 export { buildDb } from './build';
 
 let instance: Db | undefined;
+let pending: Promise<Db> | undefined;
 
-/** App-wide lazy singleton over the device database. Migrates and seeds. */
+/** One-time async init (root layout gates rendering on this). */
+export function initDb(): Promise<Db> {
+  if (instance) return Promise.resolve(instance);
+  if (!pending) {
+    pending = createExpoDb().then((adapter) => {
+      instance = buildDb(adapter);
+      seedIfEmpty(instance);
+      return instance;
+    });
+  }
+  return pending;
+}
+
+/** Synchronous access for screens. Safe only after initDb() resolved. */
 export function getDb(): Db {
   if (!instance) {
-    instance = buildDb(createExpoDb());
-    seedIfEmpty(instance);
+    throw new Error('Database not ready — initDb() must resolve before screens render');
   }
   return instance;
 }
