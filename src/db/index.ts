@@ -1,44 +1,17 @@
-import { DbAdapter } from './adapter';
-import {
-  diaryDao,
-  exercisesDao,
-  foodsDao,
-  recipesDao,
-  settingsDao,
-  workoutsDao,
-} from './dao';
+import { seedIfEmpty } from '../seed';
+import { buildDb, Db } from './build';
 import { createExpoDb } from './expoAdapter';
-import { migrate } from './schema';
 
-export interface Db {
-  adapter: DbAdapter;
-  foods: ReturnType<typeof foodsDao>;
-  recipes: ReturnType<typeof recipesDao>;
-  diary: ReturnType<typeof diaryDao>;
-  exercises: ReturnType<typeof exercisesDao>;
-  workouts: ReturnType<typeof workoutsDao>;
-  settings: ReturnType<typeof settingsDao>;
-}
-
-export function buildDb(adapter: DbAdapter): Db {
-  migrate(adapter);
-  return {
-    adapter,
-    foods: foodsDao(adapter),
-    recipes: recipesDao(adapter),
-    diary: diaryDao(adapter),
-    exercises: exercisesDao(adapter),
-    workouts: workoutsDao(adapter),
-    settings: settingsDao(adapter),
-  };
-}
+export type { Db } from './build';
+export { buildDb } from './build';
 
 let instance: Db | undefined;
 
-/** App-wide lazy singleton over the device database. */
+/** App-wide lazy singleton over the device database. Migrates and seeds. */
 export function getDb(): Db {
   if (!instance) {
     instance = buildDb(createExpoDb());
+    seedIfEmpty(instance);
   }
   return instance;
 }

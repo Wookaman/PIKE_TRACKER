@@ -431,12 +431,16 @@ export function exercisesDao(db: DbAdapter) {
       primary: MuscleId[];
       secondary: MuscleId[];
     }): number {
-      db.run(
-        `INSERT INTO exercises (name, category, primary_muscles, secondary_muscles, is_custom)
-         VALUES (?, ?, ?, ?, 1)`,
-        [e.name, e.category, JSON.stringify(e.primary), JSON.stringify(e.secondary)],
-      );
-      return lastId(db);
+      return insertExercise(db, e, true);
+    },
+
+    insertSeed(e: {
+      name: string;
+      category: ExerciseCategory;
+      primary: MuscleId[];
+      secondary: MuscleId[];
+    }): number {
+      return insertExercise(db, e, false);
     },
 
     softDelete(id: number): void {
@@ -520,6 +524,19 @@ export function settingsDao(db: DbAdapter) {
       return Number.isFinite(n) ? n : fallback;
     },
   };
+}
+
+function insertExercise(
+  db: DbAdapter,
+  e: { name: string; category: ExerciseCategory; primary: MuscleId[]; secondary: MuscleId[] },
+  isCustom: boolean,
+): number {
+  db.run(
+    `INSERT INTO exercises (name, category, primary_muscles, secondary_muscles, is_custom)
+     VALUES (?, ?, ?, ?, ?)`,
+    [e.name, e.category, JSON.stringify(e.primary), JSON.stringify(e.secondary), isCustom ? 1 : 0],
+  );
+  return lastId(db);
 }
 
 function lastId(db: DbAdapter): number {
