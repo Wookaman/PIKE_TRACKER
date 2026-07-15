@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "PIKE TRACKER",
+    "slug": "pike-tracker",
+    "version": "1.0.0",
+    "scheme": "piketracker",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0b0b0d",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router", "expo-sqlite", "expo-status-bar"]
+  }
+}
