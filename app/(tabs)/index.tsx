@@ -75,13 +75,34 @@ export default function DiaryScreen() {
   const tick = useAppStore((s) => s.tick);
 
   const entries = useDbQuery((db) => db.diary.forDate(dateKey), [dateKey, tick]) ?? [];
-  const kcalGoal = useDbQuery((db) => db.settings.getNum('kcalGoal', 2200), [tick]) ?? 2200;
+  const goals = useDbQuery(
+    async (db) => {
+      const opt = async (key: string) => {
+        const v = await db.settings.get(key);
+        const n = Number(v);
+        return v && Number.isFinite(n) && n > 0 ? n : undefined;
+      };
+      return {
+        kcal: await db.settings.getNum('kcalGoal', 2200),
+        protein: await opt('proteinGoal'),
+        carbs: await opt('carbsGoal'),
+        fat: await opt('fatGoal'),
+      };
+    },
+    [tick],
+  );
   const totals = useMemo(() => sumMacros(entries), [entries]);
 
   return (
     <Screen>
       <DateNav />
-      <MacroSummary totals={totals} kcalGoal={kcalGoal} />
+      <MacroSummary
+        totals={totals}
+        kcalGoal={goals?.kcal ?? 2200}
+        proteinGoal={goals?.protein}
+        carbsGoal={goals?.carbs}
+        fatGoal={goals?.fat}
+      />
       <View style={{ gap: sp.m }}>
         {MEALS.map((m) => (
           <MealWindow key={m.id} meal={m} entries={entries.filter((e) => e.meal === m.id)} />

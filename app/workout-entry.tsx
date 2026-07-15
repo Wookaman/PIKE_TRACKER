@@ -62,6 +62,7 @@ function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: Workout
   const dateKey = useAppStore((s) => s.dateKey);
   const bump = useAppStore((s) => s.bump);
   const isCardio = exercise.category === 'cardio';
+  const weightUnit = useDbQuery(async (db) => (await db.settings.get('weightUnit')) ?? 'kg', []) ?? 'kg';
 
   const initialSets: DraftSet[] =
     entry && Array.isArray(entry.sets) && entry.sets.length > 0
@@ -115,7 +116,7 @@ function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: Workout
           <SunkenPanel style={{ marginBottom: sp.s, padding: sp.s, gap: sp.s }}>
             <View style={{ flexDirection: 'row', gap: sp.s, paddingHorizontal: 2 }}>
               <Text style={[label, { flex: 1, fontSize: 10, color: '#8a8a92' }]}>REPS</Text>
-              <Text style={[label, { flex: 1, fontSize: 10, color: '#8a8a92' }]}>WEIGHT</Text>
+              <Text style={[label, { flex: 1, fontSize: 10, color: '#8a8a92' }]}>WEIGHT ({weightUnit.toUpperCase()})</Text>
               <View style={{ width: 34 }} />
             </View>
             {sets.map((s, i) => (
