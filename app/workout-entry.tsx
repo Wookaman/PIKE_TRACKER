@@ -9,6 +9,7 @@ import { useAppStore } from '../src/state/appStore';
 import { BevelButton } from '../src/ui/BevelButton';
 import { Screen } from '../src/ui/Screen';
 import { SunkenPanel } from '../src/ui/SunkenPanel';
+import { SwipeToDelete } from '../src/ui/SwipeToDelete';
 import { Window } from '../src/ui/Window';
 import { XPTextInput } from '../src/ui/XPTextInput';
 import * as haptics from '../src/ui/haptics';
@@ -117,30 +118,28 @@ function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: Workout
             <View style={{ flexDirection: 'row', gap: sp.s, paddingHorizontal: 2 }}>
               <Text style={[label, { flex: 1, fontSize: 10, color: '#8a8a92' }]}>REPS</Text>
               <Text style={[label, { flex: 1, fontSize: 10, color: '#8a8a92' }]}>WEIGHT ({weightUnit.toUpperCase()})</Text>
-              <View style={{ width: 34 }} />
             </View>
             {sets.map((s, i) => (
-              <View key={i} style={{ flexDirection: 'row', gap: sp.s, alignItems: 'center' }}>
-                <XPTextInput
-                  keyboardType="number-pad"
-                  value={s.reps}
-                  onChangeText={(v) => setSets((list) => list.map((x, j) => (j === i ? { ...x, reps: v } : x)))}
-                  style={{ flex: 1 }}
-                />
-                <XPTextInput
-                  keyboardType="decimal-pad"
-                  value={s.weight}
-                  onChangeText={(v) => setSets((list) => list.map((x, j) => (j === i ? { ...x, weight: v } : x)))}
-                  style={{ flex: 1 }}
-                />
-                <BevelButton
-                  small
-                  title="✕"
-                  disabled={sets.length === 1}
-                  onPress={() => setSets((list) => list.filter((_, j) => j !== i))}
-                  style={{ width: 34 }}
-                />
-              </View>
+              <SwipeToDelete
+                key={i}
+                disabled={sets.length === 1}
+                onDelete={() => setSets((list) => list.filter((_, j) => j !== i))}
+              >
+                <View style={{ flexDirection: 'row', gap: sp.s, alignItems: 'center' }}>
+                  <XPTextInput
+                    keyboardType="number-pad"
+                    value={s.reps}
+                    onChangeText={(v) => setSets((list) => list.map((x, j) => (j === i ? { ...x, reps: v } : x)))}
+                    style={{ flex: 1 }}
+                  />
+                  <XPTextInput
+                    keyboardType="decimal-pad"
+                    value={s.weight}
+                    onChangeText={(v) => setSets((list) => list.map((x, j) => (j === i ? { ...x, weight: v } : x)))}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </SwipeToDelete>
             ))}
           </SunkenPanel>
           <BevelButton

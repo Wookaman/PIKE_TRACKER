@@ -12,9 +12,8 @@ import { BevelButton } from '../../src/ui/BevelButton';
 import { ListRow } from '../../src/ui/ListRow';
 import { Screen } from '../../src/ui/Screen';
 import { SunkenPanel } from '../../src/ui/SunkenPanel';
+import { SwipeToDelete } from '../../src/ui/SwipeToDelete';
 import { Window } from '../../src/ui/Window';
-import { confirmDelete } from '../../src/ui/confirm';
-import * as haptics from '../../src/ui/haptics';
 import { data, dim, sp } from '../../src/ui/theme';
 
 function setsSummary(e: WorkoutEntryRow): string {
@@ -45,25 +44,21 @@ export default function WorkoutsScreen() {
         {entries.length > 0 ? (
           <SunkenPanel style={{ marginBottom: sp.s }}>
             {entries.map((e) => (
-              <ListRow
+              <SwipeToDelete
                 key={e.id}
-                title={e.name}
-                subtitle={setsSummary(e)}
-                right={<Text style={[data, dim]}>{e.category === 'cardio' ? 'CARDIO' : ''}</Text>}
-                onPress={() =>
-                  router.push({ pathname: '/workout-entry', params: { entryId: String(e.id) } })
-                }
-                onLongPress={() =>
-                  confirmDelete(`Delete ${e.name}?`, () => {
-                    getDb()
-                      .workouts.remove(e.id)
-                      .then(() => {
-                        haptics.warn();
-                        bump();
-                      });
-                  })
-                }
-              />
+                onDelete={() => {
+                  getDb().workouts.remove(e.id).then(bump);
+                }}
+              >
+                <ListRow
+                  title={e.name}
+                  subtitle={setsSummary(e)}
+                  right={<Text style={[data, dim]}>{e.category === 'cardio' ? 'CARDIO' : ''}</Text>}
+                  onPress={() =>
+                    router.push({ pathname: '/workout-entry', params: { entryId: String(e.id) } })
+                  }
+                />
+              </SwipeToDelete>
             ))}
           </SunkenPanel>
         ) : (

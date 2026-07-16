@@ -12,9 +12,8 @@ import { BevelButton } from '../../src/ui/BevelButton';
 import { ListRow } from '../../src/ui/ListRow';
 import { Screen } from '../../src/ui/Screen';
 import { SunkenPanel } from '../../src/ui/SunkenPanel';
+import { SwipeToDelete } from '../../src/ui/SwipeToDelete';
 import { Window } from '../../src/ui/Window';
-import { confirmDelete } from '../../src/ui/confirm';
-import * as haptics from '../../src/ui/haptics';
 import { data, dim, sp } from '../../src/ui/theme';
 
 const MEALS: { id: Meal; title: string }[] = [
@@ -34,28 +33,24 @@ function MealWindow({ meal, entries }: { meal: { id: Meal; title: string }; entr
       {entries.length > 0 ? (
         <SunkenPanel style={{ marginBottom: sp.s }}>
           {entries.map((e) => (
-            <ListRow
+            <SwipeToDelete
               key={e.id}
-              title={e.name}
-              subtitle={`${e.qty} ${e.unitLabel} · ${Math.round(e.kcal)} kcal`}
-              right={<Text style={[data, dim]}>P{Math.round(e.protein)}</Text>}
-              onPress={() =>
-                router.push({
-                  pathname: e.recipeId ? '/recipe-log' : '/food-detail',
-                  params: { entryId: String(e.id) },
-                })
-              }
-              onLongPress={() =>
-                confirmDelete(`Delete ${e.name}?`, () => {
-                  getDb()
-                    .diary.remove(e.id)
-                    .then(() => {
-                      haptics.warn();
-                      bump();
-                    });
-                })
-              }
-            />
+              onDelete={() => {
+                getDb().diary.remove(e.id).then(bump);
+              }}
+            >
+              <ListRow
+                title={e.name}
+                subtitle={`${e.qty} ${e.unitLabel} · ${Math.round(e.kcal)} kcal`}
+                right={<Text style={[data, dim]}>P{Math.round(e.protein)}</Text>}
+                onPress={() =>
+                  router.push({
+                    pathname: e.recipeId ? '/recipe-log' : '/food-detail',
+                    params: { entryId: String(e.id) },
+                  })
+                }
+              />
+            </SwipeToDelete>
           ))}
         </SunkenPanel>
       ) : (
