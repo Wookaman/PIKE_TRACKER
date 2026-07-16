@@ -7,7 +7,6 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0b0b0d",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false
     },
