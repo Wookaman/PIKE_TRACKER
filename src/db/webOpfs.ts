@@ -20,9 +20,12 @@ export async function wipeWebDatabases(): Promise<void> {
     'unload',
     () => {},
   );
-  const storage = (globalThis.navigator as Navigator & {
-    storage?: { getDirectory?: () => Promise<OpfsDirectory> };
-  })?.storage;
+  // Access OPFS through `unknown`: lib.dom's FileSystemDirectoryHandle type
+  // doesn't expose the async-iterator `entries()` we rely on, so we describe
+  // just the shape we use.
+  const storage = (globalThis.navigator as { storage?: unknown })?.storage as
+    | { getDirectory?: () => Promise<OpfsDirectory> }
+    | undefined;
   if (!storage?.getDirectory) return;
   try {
     const root = await storage.getDirectory();
