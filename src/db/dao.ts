@@ -86,6 +86,8 @@ export interface WorkoutEntryRow {
   secondary: MuscleId[];
   sets: WorkoutSets;
   notes?: string;
+  /** Per-limb logging: total volume counts both sides. */
+  unilateral: boolean;
 }
 
 interface RawFood {
@@ -455,6 +457,7 @@ export function workoutsDao(db: DbAdapter) {
     exercise_id: number;
     sets: string;
     notes: string | null;
+    unilateral: number;
     name: string;
     category: ExerciseCategory;
     primary_muscles: string;
@@ -464,7 +467,7 @@ export function workoutsDao(db: DbAdapter) {
   return {
     async forDate(dateKey: string): Promise<WorkoutEntryRow[]> {
       const rows = await db.all<RawWorkout>(
-        `SELECT w.id, w.date, w.exercise_id, w.sets, w.notes,
+        `SELECT w.id, w.date, w.exercise_id, w.sets, w.notes, w.unilateral,
                 e.name, e.category, e.primary_muscles, e.secondary_muscles
          FROM workout_entries w JOIN exercises e ON e.id = w.exercise_id
          WHERE w.date = ? ORDER BY w.id`,
@@ -480,21 +483,32 @@ export function workoutsDao(db: DbAdapter) {
         secondary: JSON.parse(r.secondary_muscles) as MuscleId[],
         sets: JSON.parse(r.sets) as WorkoutSets,
         notes: r.notes ?? undefined,
+        unilateral: r.unilateral === 1,
       }));
     },
 
-    async add(e: { date: string; exerciseId: number; sets: WorkoutSets; notes?: string }): Promise<number> {
+    async add(e: {
+      date: string;
+      exerciseId: number;
+      sets: WorkoutSets;
+      notes?: string;
+      unilateral?: boolean;
+    }): Promise<number> {
       const result = await db.run(
-        `INSERT INTO workout_entries (date, exercise_id, sets, notes) VALUES (?, ?, ?, ?)`,
-        [e.date, e.exerciseId, JSON.stringify(e.sets), e.notes ?? null],
+        `INSERT INTO workout_entries (date, exercise_id, sets, notes, unilateral) VALUES (?, ?, ?, ?, ?)`,
+        [e.date, e.exerciseId, JSON.stringify(e.sets), e.notes ?? null, e.unilateral ? 1 : 0],
       );
       return result.lastInsertRowId;
     },
 
-    async update(id: number, patch: { sets: WorkoutSets; notes?: string }): Promise<void> {
-      await db.run(`UPDATE workout_entries SET sets=?, notes=? WHERE id=?`, [
+    async update(
+      id: number,
+      patch: { sets: WorkoutSets; notes?: string; unilateral?: boolean },
+    ): Promise<void> {
+      await db.run(`UPDATE workout_entries SET sets=?, notes=?, unilateral=? WHERE id=?`, [
         JSON.stringify(patch.sets),
         patch.notes ?? null,
+        patch.unilateral ? 1 : 0,
         id,
       ]);
     },

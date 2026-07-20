@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getDb } from '../src/db';
 import { ExerciseRow, WorkoutEntryRow } from '../src/db/dao';
 import { useDbQuery } from '../src/db/useDbQuery';
@@ -18,6 +18,32 @@ import { data, dim, label, sp } from '../src/ui/theme';
 interface DraftSet {
   reps: string;
   weight: string;
+}
+
+/**
+ * A number field that only focuses on a real tap, never on a swipe. The input
+ * itself is pointer-transparent; a Pressable overlay routes focus. The swipe
+ * gesture cancels that press once it activates, so dragging to delete a row no
+ * longer pops the keyboard.
+ */
+function SetNumberField({
+  value,
+  onChangeText,
+  keyboardType,
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  keyboardType: 'number-pad' | 'decimal-pad';
+}) {
+  const ref = useRef<TextInput>(null);
+  return (
+    <View style={{ flex: 1 }}>
+      <View pointerEvents="none">
+        <XPTextInput ref={ref} value={value} onChangeText={onChangeText} keyboardType={keyboardType} selectTextOnFocus />
+      </View>
+      <Pressable onPress={() => ref.current?.focus()} style={StyleSheet.absoluteFill} />
+    </View>
+  );
 }
 
 export default function WorkoutEntryScreen() {
@@ -74,6 +100,7 @@ function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: Workout
 
   const [sets, setSets] = useState<DraftSet[]>(initialSets);
   const [duration, setDuration] = useState(initialDuration);
+  const [unilateral, setUnilateral] = useState(entry?.unilateral ?? false);
 
   const parsedSets: SetEntry[] = sets
     .map((s) => ({ reps: Number(s.reps), weight: Number(s.weight) }))
@@ -83,13 +110,18 @@ function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: Workout
     ? Number.isFinite(parsedDuration) && parsedDuration > 0
     : parsedSets.length > 0;
 
+  const totalReps = parsedSets.reduce((sum, s) => sum + s.reps, 0);
+  const rawVolume = parsedSets.reduce((sum, s) => sum + s.reps * s.weight, 0);
+  // Unilateral: the logged weight is what each side did, so both sides count.
+  const volume = unilateral ? rawVolume * 2 : rawVolume;
+
   const save = async () => {
     if (!valid) return;
     const payload = isCardio ? { durationMin: parsedDuration } : parsedSets;
     if (entry) {
-      await getDb().workouts.update(entry.id, { sets: payload });
+      await getDb().workouts.update(entry.id, { sets: payload, unilateral });
     } else {
-      await getDb().workouts.add({ date: dateKey, exerciseId: exercise.id, sets: payload });
+      await getDb().workouts.add({ date: dateKey, exerciseId: exercise.id, sets: payload, unilateral });
     }
     haptics.success();
     bump();
@@ -103,9 +135,19 @@ function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: Workout
   return (
     <Screen>
       <Window title={exercise.name.toUpperCase()} onClose={() => router.back()}>
-        <Text style={dim}>
-          {[...exercise.primary, ...exercise.secondary].map((m) => MUSCLE_LABELS[m]).join(' · ')}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: sp.s }}>
+          <Text style={[dim, { flex: 1 }]}>
+            {[...exercise.primary, ...exercise.secondary].map((m) => MUSCLE_LABELS[m]).join(' · ')}
+          </Text>
+          {!isCardio ? (
+            <BevelButton
+              title="UNILATERAL"
+              small
+              active={unilateral}
+              onPress={() => setUnilateral((u) => !u)}
+            />
+          ) : null}
+        </View>
       </Window>
 
       {isCardio ? (
@@ -126,17 +168,15 @@ function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: Workout
                 onDelete={() => setSets((list) => list.filter((_, j) => j !== i))}
               >
                 <View style={{ flexDirection: 'row', gap: sp.s, alignItems: 'center' }}>
-                  <XPTextInput
+                  <SetNumberField
                     keyboardType="number-pad"
                     value={s.reps}
                     onChangeText={(v) => setSets((list) => list.map((x, j) => (j === i ? { ...x, reps: v } : x)))}
-                    style={{ flex: 1 }}
                   />
-                  <XPTextInput
+                  <SetNumberField
                     keyboardType="decimal-pad"
                     value={s.weight}
                     onChangeText={(v) => setSets((list) => list.map((x, j) => (j === i ? { ...x, weight: v } : x)))}
-                    style={{ flex: 1 }}
                   />
                 </View>
               </SwipeToDelete>
@@ -151,10 +191,9 @@ function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: Workout
       )}
 
       {!isCardio && parsedSets.length > 0 ? (
-        <Window title="TOTAL">
+        <Window title="TOTAL" right={unilateral ? <Text style={[label, { fontSize: 10 }]}>×2 UNILATERAL</Text> : undefined}>
           <Text style={data}>
-            {parsedSets.reduce((sum, s) => sum + s.reps, 0)} reps ·{' '}
-            {parsedSets.reduce((sum, s) => sum + s.reps * s.weight, 0)} volume
+            {totalReps} reps · {volume} volume
           </Text>
         </Window>
       ) : null}

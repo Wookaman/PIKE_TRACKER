@@ -172,12 +172,31 @@ describe('workoutsDao', () => {
     expect(day[0].name).toBe('Bench press');
     expect(day[0].primary).toEqual(['chest']);
     expect(day[0].sets).toEqual(sets);
+    expect(day[0].unilateral).toBe(false);
 
     await workouts.update(id, { sets: [{ reps: 5, weight: 70 }] });
     expect((await workouts.forDate('2026-07-15'))[0].sets).toEqual([{ reps: 5, weight: 70 }]);
 
     await workouts.remove(id);
     expect(await workouts.forDate('2026-07-15')).toHaveLength(0);
+  });
+
+  it('round-trips the unilateral flag', async () => {
+    const db = await freshDb();
+    const exercises = exercisesDao(db);
+    const workouts = workoutsDao(db);
+    const exId = await exercises.insertCustom({ name: 'Lateral raise', category: 'strength', primary: ['shoulders'], secondary: [] });
+
+    const id = await workouts.add({
+      date: '2026-07-15',
+      exerciseId: exId,
+      sets: [{ reps: 12, weight: 20 }],
+      unilateral: true,
+    });
+    expect((await workouts.forDate('2026-07-15'))[0].unilateral).toBe(true);
+
+    await workouts.update(id, { sets: [{ reps: 12, weight: 20 }], unilateral: false });
+    expect((await workouts.forDate('2026-07-15'))[0].unilateral).toBe(false);
   });
 
   it('stores cardio entries', async () => {

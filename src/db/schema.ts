@@ -83,6 +83,11 @@ const MIGRATIONS: string[][] = [
       value TEXT NOT NULL
     )`,
   ],
+  [
+    // Unilateral: the logged weight is per-limb, so total volume counts both
+    // sides (doubles). Stored per workout entry, alongside the sets JSON.
+    `ALTER TABLE workout_entries ADD COLUMN unilateral INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];
 
 export async function migrate(db: DbAdapter): Promise<void> {
