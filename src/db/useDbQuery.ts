@@ -1,6 +1,6 @@
 import { DependencyList, useEffect, useState } from 'react';
 import { Db } from './build';
-import { getDb } from './index';
+import { initDb } from './index';
 
 /**
  * Run an async DB read and re-run when deps change (include the app store's
@@ -11,11 +11,18 @@ export function useDbQuery<T>(query: (db: Db) => Promise<T>, deps: DependencyLis
 
   useEffect(() => {
     let alive = true;
-    query(getDb())
+    // Route through initDb() (idempotent) rather than a synchronous getDb():
+    // getDb() throws when the module singleton is momentarily unset (e.g. a
+    // Fast Refresh re-evaluates db/index.ts while RootLayout stays mounted),
+    // and that sync throw escaped this effect. initDb() awaits/rebuilds it.
+    initDb()
+      .then((db) => query(db))
       .then((result) => {
         if (alive) setData(result);
       })
-      .catch((e: unknown) => console.error('db query failed', e));
+      .catch((e: unknown) => {
+        if (alive) console.error('db query failed', e);
+      });
     return () => {
       alive = false;
     };

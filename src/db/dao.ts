@@ -516,6 +516,64 @@ export function workoutsDao(db: DbAdapter) {
     async remove(id: number): Promise<void> {
       await db.run(`DELETE FROM workout_entries WHERE id = ?`, [id]);
     },
+
+    /** Most recent entry for this exercise strictly before dateKey. */
+    async lastBefore(
+      exerciseId: number,
+      dateKey: string,
+    ): Promise<{ date: string; sets: WorkoutSets } | undefined> {
+      const row = await db.first<{ date: string; sets: string }>(
+        `SELECT date, sets FROM workout_entries
+         WHERE exercise_id = ? AND date < ?
+         ORDER BY date DESC, id DESC LIMIT 1`,
+        [exerciseId, dateKey],
+      );
+      return row ? { date: row.date, sets: JSON.parse(row.sets) as WorkoutSets } : undefined;
+    },
+
+    /** Every session for one exercise, oldest first (for progress charts). */
+    async historyForExercise(exerciseId: number): Promise<{ date: string; sets: WorkoutSets }[]> {
+      const rows = await db.all<{ date: string; sets: string }>(
+        `SELECT date, sets FROM workout_entries WHERE exercise_id = ? ORDER BY date, id`,
+        [exerciseId],
+      );
+      return rows.map((r) => ({ date: r.date, sets: JSON.parse(r.sets) as WorkoutSets }));
+    },
+
+    /** Distinct strength exercises the user has actually logged. */
+    async loggedExercises(): Promise<{ id: number; name: string }[]> {
+      return db.all<{ id: number; name: string }>(
+        `SELECT DISTINCT w.exercise_id AS id, e.name
+         FROM workout_entries w JOIN exercises e ON e.id = w.exercise_id
+         WHERE e.category = 'strength'
+         ORDER BY e.name`,
+      );
+    },
+  };
+}
+
+export function bodyweightDao(db: DbAdapter) {
+  return {
+    /** Upsert one entry per day (overwrite the same date). */
+    async set(date: string, weight: number): Promise<void> {
+      await db.run(
+        `INSERT INTO bodyweight_entries (date, weight) VALUES (?, ?)
+         ON CONFLICT(date) DO UPDATE SET weight = excluded.weight`,
+        [date, weight],
+      );
+    },
+
+    async latest(): Promise<{ date: string; weight: number } | undefined> {
+      return db.first<{ date: string; weight: number }>(
+        `SELECT date, weight FROM bodyweight_entries ORDER BY date DESC LIMIT 1`,
+      );
+    },
+
+    async history(): Promise<{ date: string; weight: number }[]> {
+      return db.all<{ date: string; weight: number }>(
+        `SELECT date, weight FROM bodyweight_entries ORDER BY date`,
+      );
+    },
   };
 }
 

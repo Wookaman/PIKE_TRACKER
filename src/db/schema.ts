@@ -88,6 +88,17 @@ const MIGRATIONS: string[][] = [
     // sides (doubles). Stored per workout entry, alongside the sets JSON.
     `ALTER TABLE workout_entries ADD COLUMN unilateral INTEGER NOT NULL DEFAULT 0`,
   ],
+  [
+    // Bodyweight time series: one entry per day (date UNIQUE = overwrite).
+    `CREATE TABLE bodyweight_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL UNIQUE,
+      weight REAL NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    // Speeds up per-exercise history/last-attempt lookups (progress charts).
+    `CREATE INDEX idx_workout_exercise ON workout_entries(exercise_id)`,
+  ],
 ];
 
 export async function migrate(db: DbAdapter): Promise<void> {

@@ -1,14 +1,16 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { getDb } from '../../src/db';
 import { useDbQuery } from '../../src/db/useDbQuery';
+import { todayKey } from '../../src/lib/dates';
 import { useAppStore } from '../../src/state/appStore';
 import { BevelButton } from '../../src/ui/BevelButton';
 import { Screen } from '../../src/ui/Screen';
 import { Window } from '../../src/ui/Window';
 import { XPTextInput } from '../../src/ui/XPTextInput';
 import * as haptics from '../../src/ui/haptics';
-import { dim, sp } from '../../src/ui/theme';
+import { data, dim, sp } from '../../src/ui/theme';
 
 interface Loaded {
   kcal: number;
@@ -45,6 +47,50 @@ export default function SettingsScreen() {
     );
   }
   return <SettingsForm loaded={loaded} />;
+}
+
+function BodyweightSection({ unit }: { unit: string }) {
+  const router = useRouter();
+  const bump = useAppStore((s) => s.bump);
+  const tick = useAppStore((s) => s.tick);
+  const latest = useDbQuery((db) => db.bodyweight.latest(), [tick]);
+  const [weight, setWeight] = useState('');
+
+  const num = Number(weight);
+  const valid = weight.trim().length > 0 && Number.isFinite(num) && num > 0;
+
+  const log = async () => {
+    if (!valid) return;
+    await getDb().bodyweight.set(todayKey(), num);
+    haptics.success();
+    setWeight('');
+    bump();
+  };
+
+  return (
+    <>
+      <Window
+        title="BODYWEIGHT"
+        right={latest ? <Text style={data}>{latest.weight} {unit}</Text> : undefined}
+      >
+        <View style={{ gap: sp.s }}>
+          <Text style={dim}>{latest ? `LAST · ${latest.date}` : 'NO ENTRIES YET'}</Text>
+          <View style={{ flexDirection: 'row', gap: sp.s }}>
+            <XPTextInput
+              placeholder={`Today's weight (${unit})`}
+              keyboardType="decimal-pad"
+              value={weight}
+              onChangeText={setWeight}
+              style={{ flex: 1 }}
+            />
+            <BevelButton title="LOG" small disabled={!valid} onPress={log} />
+          </View>
+        </View>
+      </Window>
+
+      <BevelButton title="VIEW PROGRESS ▸" onPress={() => router.push('/progress')} />
+    </>
+  );
 }
 
 function SettingsForm({ loaded }: { loaded: Loaded }) {
@@ -100,6 +146,8 @@ function SettingsForm({ loaded }: { loaded: Loaded }) {
       </Window>
 
       <BevelButton title={saved ? 'SAVED ✓' : 'SAVE SETTINGS'} disabled={!valid} onPress={save} />
+
+      <BodyweightSection unit={unit} />
 
       <Window title="ABOUT">
         <Text style={dim}>PIKE TRACKER v1.0</Text>

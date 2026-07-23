@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getDb } from '../src/db';
 import { ExerciseRow, WorkoutEntryRow } from '../src/db/dao';
 import { useDbQuery } from '../src/db/useDbQuery';
-import { CardioEntry, MUSCLE_LABELS, SetEntry } from '../src/lib/types';
+import { CardioEntry, MUSCLE_LABELS, SetEntry, WorkoutSets } from '../src/lib/types';
 import { useAppStore } from '../src/state/appStore';
 import { BevelButton } from '../src/ui/BevelButton';
 import { Screen } from '../src/ui/Screen';
@@ -58,7 +58,8 @@ export default function WorkoutEntryScreen() {
         : undefined;
       const exerciseId = entry?.exerciseId ?? (params.exerciseId ? Number(params.exerciseId) : undefined);
       const exercise = exerciseId ? await db.exercises.getById(exerciseId) : undefined;
-      return { entry, exercise };
+      const lastAttempt = exerciseId ? await db.workouts.lastBefore(exerciseId, dateKey) : undefined;
+      return { entry, exercise, lastAttempt };
     },
     [params.entryId, params.exerciseId, dateKey],
   );
@@ -81,10 +82,27 @@ export default function WorkoutEntryScreen() {
       </Screen>
     );
   }
-  return <EntryForm exercise={loaded.exercise} entry={loaded.entry} />;
+  return (
+    <EntryForm exercise={loaded.exercise} entry={loaded.entry} lastAttempt={loaded.lastAttempt} />
+  );
 }
 
-function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: WorkoutEntryRow }) {
+/** One-line summary of a previous session's sets. */
+function summarizeSets(sets: WorkoutSets): string {
+  if (!Array.isArray(sets)) return `${sets.durationMin} min`;
+  if (sets.length === 0) return '—';
+  return sets.map((s) => `${s.reps}×${s.weight}`).join(' · ');
+}
+
+function EntryForm({
+  exercise,
+  entry,
+  lastAttempt,
+}: {
+  exercise: ExerciseRow;
+  entry?: WorkoutEntryRow;
+  lastAttempt?: { date: string; sets: WorkoutSets };
+}) {
   const router = useRouter();
   const dateKey = useAppStore((s) => s.dateKey);
   const bump = useAppStore((s) => s.bump);
@@ -149,6 +167,12 @@ function EntryForm({ exercise, entry }: { exercise: ExerciseRow; entry?: Workout
           ) : null}
         </View>
       </Window>
+
+      {lastAttempt ? (
+        <Window title={`LAST TIME · ${lastAttempt.date}`}>
+          <Text style={[data, dim]}>{summarizeSets(lastAttempt.sets)}</Text>
+        </Window>
+      ) : null}
 
       {isCardio ? (
         <Window title="DURATION (MIN)">
