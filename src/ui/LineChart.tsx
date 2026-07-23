@@ -11,13 +11,16 @@ export interface ChartPoint {
 interface LineChartProps {
   points: ChartPoint[];
   height?: number;
-  unit?: string;
+  /** Y-axis (row) variable name, e.g. "WEIGHT (KG)". */
+  yLabel?: string;
+  /** X-axis (column) variable name, e.g. "DATE". */
+  xLabel?: string;
 }
 
-const PAD_L = 40;
+const PAD_L = 48;
 const PAD_R = 12;
 const PAD_T = 12;
-const PAD_B = 22;
+const PAD_B = 34;
 
 function niceRange(min: number, max: number): [number, number] {
   if (min === max) {
@@ -29,7 +32,7 @@ function niceRange(min: number, max: number): [number, number] {
 }
 
 /** Hand-built monochrome SVG line chart over the XP-dark well. */
-export function LineChart({ points, height = 180, unit }: LineChartProps) {
+export function LineChart({ points, height = 190, yLabel, xLabel }: LineChartProps) {
   if (points.length === 0) {
     return (
       <SunkenPanel style={{ height, alignItems: 'center', justifyContent: 'center' }}>
@@ -53,6 +56,10 @@ export function LineChart({ points, height = 180, unit }: LineChartProps) {
 
   // Three y gridlines/labels: bottom, mid, top.
   const yTicks = [lo, lo + span / 2, hi];
+
+  const yTitleX = 10;
+  const yTitleY = PAD_T + plotH / 2;
+  const dateY = PAD_T + plotH + 12;
 
   return (
     <SunkenPanel style={{ padding: 4 }}>
@@ -87,14 +94,14 @@ export function LineChart({ points, height = 180, unit }: LineChartProps) {
           <Circle key={`p${i}`} cx={x(i)} cy={y(p.value)} r={2} fill={c.white} />
         ))}
 
-        {/* First and last x labels (dates), kept sparse to avoid clutter. */}
-        <SvgText x={PAD_L} y={height - 6} fill={c.textDim} fontSize={8} fontFamily={mono} textAnchor="start">
+        {/* First and last x tick labels (dates), kept sparse to avoid clutter. */}
+        <SvgText x={PAD_L} y={dateY} fill={c.textDim} fontSize={8} fontFamily={mono} textAnchor="start">
           {points[0].label}
         </SvgText>
         {points.length > 1 ? (
           <SvgText
             x={width - PAD_R}
-            y={height - 6}
+            y={dateY}
             fill={c.textDim}
             fontSize={8}
             fontFamily={mono}
@@ -103,9 +110,31 @@ export function LineChart({ points, height = 180, unit }: LineChartProps) {
             {points[points.length - 1].label}
           </SvgText>
         ) : null}
-        {unit ? (
-          <SvgText x={PAD_L} y={PAD_T - 3} fill={c.textFaint} fontSize={8} fontFamily={mono} textAnchor="start">
-            {unit}
+
+        {/* Axis variable names. */}
+        {yLabel ? (
+          <SvgText
+            x={yTitleX}
+            y={yTitleY}
+            fill={c.text}
+            fontSize={9}
+            fontFamily={mono}
+            textAnchor="middle"
+            transform={`rotate(-90, ${yTitleX}, ${yTitleY})`}
+          >
+            {yLabel}
+          </SvgText>
+        ) : null}
+        {xLabel ? (
+          <SvgText
+            x={PAD_L + plotW / 2}
+            y={height - 4}
+            fill={c.text}
+            fontSize={9}
+            fontFamily={mono}
+            textAnchor="middle"
+          >
+            {xLabel}
           </SvgText>
         ) : null}
       </Svg>

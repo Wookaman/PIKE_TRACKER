@@ -18,6 +18,10 @@ export default function ProgressScreen() {
   const router = useRouter();
   const tick = useAppStore((s) => s.tick);
 
+  const unit = (
+    useDbQuery(async (db) => (await db.settings.get('weightUnit')) ?? 'kg', [tick]) ?? 'kg'
+  ).toUpperCase();
+
   const bodyweight =
     useDbQuery(async (db) => {
       const hist = await db.bodyweight.history();
@@ -52,7 +56,7 @@ export default function ProgressScreen() {
       </Window>
 
       <Window title="BODYWEIGHT">
-        <LineChart points={bodyweight} />
+        <LineChart points={bodyweight} yLabel={`WEIGHT (${unit})`} xLabel="DATE" />
       </Window>
 
       <Window title="STRENGTH (EST. 1RM)">
@@ -73,7 +77,7 @@ export default function ProgressScreen() {
                 ))}
               </View>
             </ScrollView>
-            <LineChart points={strength} />
+            <LineChart points={strength} yLabel={`EST 1RM (${unit})`} xLabel="DATE" />
           </View>
         )}
       </Window>
