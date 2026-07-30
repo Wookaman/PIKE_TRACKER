@@ -1,3 +1,4 @@
+import { Micro } from '../lib/off';
 import { MuscleId, Per100, Serving, WorkoutSets } from '../lib/types';
 import { DbAdapter } from './adapter';
 
@@ -12,6 +13,7 @@ export interface FoodRow {
   source: FoodSource;
   barcode?: string;
   per100: Per100;
+  micros?: Micro[];
 }
 
 export interface FoodInput {
@@ -20,6 +22,7 @@ export interface FoodInput {
   source: FoodSource;
   barcode?: string;
   per100: Per100;
+  micros?: Micro[];
 }
 
 export interface RecipeRow {
@@ -103,10 +106,11 @@ interface RawFood {
   fiber_100g: number | null;
   sugar_100g: number | null;
   sodium_mg_100g: number | null;
+  micros: string | null;
 }
 
 const FOOD_COLS =
-  'id, name, brand, source, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g';
+  'id, name, brand, source, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g, micros';
 
 function toFoodRow(r: RawFood): FoodRow {
   return {
@@ -124,6 +128,7 @@ function toFoodRow(r: RawFood): FoodRow {
       sugar: r.sugar_100g ?? undefined,
       sodiumMg: r.sodium_mg_100g ?? undefined,
     },
+    micros: r.micros ? (JSON.parse(r.micros) as Micro[]) : undefined,
   };
 }
 
@@ -149,8 +154,8 @@ export function foodsDao(db: DbAdapter) {
 
     async insert(f: FoodInput): Promise<number> {
       const result = await db.run(
-        `INSERT INTO foods (name, brand, source, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO foods (name, brand, source, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g, micros)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           f.name,
           f.brand ?? null,
@@ -163,6 +168,7 @@ export function foodsDao(db: DbAdapter) {
           f.per100.fiber ?? null,
           f.per100.sugar ?? null,
           f.per100.sodiumMg ?? null,
+          f.micros && f.micros.length > 0 ? JSON.stringify(f.micros) : null,
         ],
       );
       return result.lastInsertRowId;
@@ -170,7 +176,7 @@ export function foodsDao(db: DbAdapter) {
 
     async update(id: number, f: FoodInput): Promise<void> {
       await db.run(
-        `UPDATE foods SET name=?, brand=?, source=?, barcode=?, kcal_100g=?, protein_100g=?, carbs_100g=?, fat_100g=?, fiber_100g=?, sugar_100g=?, sodium_mg_100g=?
+        `UPDATE foods SET name=?, brand=?, source=?, barcode=?, kcal_100g=?, protein_100g=?, carbs_100g=?, fat_100g=?, fiber_100g=?, sugar_100g=?, sodium_mg_100g=?, micros=?
          WHERE id=?`,
         [
           f.name,
@@ -184,6 +190,7 @@ export function foodsDao(db: DbAdapter) {
           f.per100.fiber ?? null,
           f.per100.sugar ?? null,
           f.per100.sodiumMg ?? null,
+          f.micros && f.micros.length > 0 ? JSON.stringify(f.micros) : null,
           id,
         ],
       );

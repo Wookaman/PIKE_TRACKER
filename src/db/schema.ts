@@ -99,6 +99,11 @@ const MIGRATIONS: string[][] = [
     // Speeds up per-exercise history/last-attempt lookups (progress charts).
     `CREATE INDEX idx_workout_exercise ON workout_entries(exercise_id)`,
   ],
+  [
+    // Micronutrient breakdown for OFF-sourced foods: JSON array of
+    // {label, amount, unit}, or NULL. Only displayed, never queried.
+    `ALTER TABLE foods ADD COLUMN micros TEXT`,
+  ],
 ];
 
 export async function migrate(db: DbAdapter): Promise<void> {

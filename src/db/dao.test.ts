@@ -35,6 +35,15 @@ describe('migrate', () => {
     const row = await db.first<{ weight: number }>(`SELECT weight FROM bodyweight_entries LIMIT 1`);
     expect(row?.weight).toBe(80);
   });
+
+  it('adds the foods.micros column (v3)', async () => {
+    const db = await freshDb();
+    await db.run(
+      `INSERT INTO foods (name, source, kcal_100g, protein_100g, carbs_100g, fat_100g, micros) VALUES ('x','off',1,1,1,1,'[]')`,
+    );
+    const row = await db.first<{ micros: string }>(`SELECT micros FROM foods WHERE name='x'`);
+    expect(row?.micros).toBe('[]');
+  });
 });
 
 describe('bodyweightDao', () => {
@@ -93,6 +102,25 @@ describe('foodsDao', () => {
     expect(await foods.servingsFor(id)).toEqual([{ label: '1 slice', grams: 28 }]);
     await foods.setServings(id, [{ label: '1 thick slice', grams: 40 }]);
     expect(await foods.servingsFor(id)).toEqual([{ label: '1 thick slice', grams: 40 }]);
+  });
+
+  it('round-trips micros json', async () => {
+    const foods = foodsDao(await freshDb());
+    const id = await foods.insert({
+      name: 'Barcode bar',
+      source: 'off',
+      barcode: '123',
+      per100: { kcal: 400, protein: 20, carbs: 40, fat: 15 },
+      micros: [{ label: 'Sodium', amount: 400, unit: 'mg' }],
+    });
+    expect((await foods.getById(id))?.micros).toEqual([{ label: 'Sodium', amount: 400, unit: 'mg' }]);
+
+    const plainId = await foods.insert({
+      name: 'Plain',
+      source: 'seed',
+      per100: { kcal: 1, protein: 1, carbs: 1, fat: 1 },
+    });
+    expect((await foods.getById(plainId))?.micros).toBeUndefined();
   });
 });
 
