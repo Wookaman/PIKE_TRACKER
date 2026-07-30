@@ -14,6 +14,10 @@
       "bundler": "metro",
       "output": "single"
     },
-    "plugins": ["expo-router", "expo-sqlite"]
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      ["expo-camera", { "cameraPermission": "PIKE TRACKER uses the camera to scan food barcodes." }]
+    ]
   }
 }
