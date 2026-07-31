@@ -11,6 +11,10 @@ Built with Expo / React Native — runs on iPhone, Android, and the web.
   advance. ~180 seeded common foods with real per-100g macros, grams / oz /
   per-food servings ("1 slice", "1 cup"), custom foods, and online search via
   Open Food Facts (results cached locally).
+- **Barcode scanning** — scan a product barcode with the phone camera
+  (Open Food Facts lookup) to log it instantly; an expandable NUTRIENTS
+  section shows the micronutrient breakdown (saturated fat, salt, vitamins,
+  minerals…) per 100 g.
 - **Recipes** — build recipes from ingredients, get per-serving macros, log by
   servings.
 - **Workout log** — same daily calendar, ~70 seeded exercises with muscle
