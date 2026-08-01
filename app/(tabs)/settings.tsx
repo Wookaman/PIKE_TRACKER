@@ -4,13 +4,63 @@ import { Text, View } from 'react-native';
 import { getDb } from '../../src/db';
 import { useDbQuery } from '../../src/db/useDbQuery';
 import { todayKey } from '../../src/lib/dates';
+import { Activity, ACTIVITY_LABELS } from '../../src/lib/goals';
 import { useAppStore } from '../../src/state/appStore';
+import { useAuthStore } from '../../src/state/authStore';
 import { BevelButton } from '../../src/ui/BevelButton';
 import { Screen } from '../../src/ui/Screen';
 import { Window } from '../../src/ui/Window';
 import { XPTextInput } from '../../src/ui/XPTextInput';
 import * as haptics from '../../src/ui/haptics';
 import { data, dim, sp } from '../../src/ui/theme';
+
+function ProfileSection() {
+  const router = useRouter();
+  const logOut = useAuthStore((s) => s.logOut);
+  const tick = useAppStore((s) => s.tick);
+  const profile = useDbQuery(async (db) => {
+    const s = db.settings;
+    return {
+      weightKg: await s.get('profileWeightKg'),
+      heightCm: await s.get('profileHeightCm'),
+      age: await s.get('profileAge'),
+      sex: await s.get('profileSex'),
+      activity: await s.get('profileActivity'),
+    };
+  }, [tick]);
+
+  const activityLabel =
+    profile?.activity && (profile.activity as Activity) in ACTIVITY_LABELS
+      ? ACTIVITY_LABELS[profile.activity as Activity]
+      : 'Not set';
+
+  const signOut = async () => {
+    await logOut();
+    router.replace('/welcome');
+  };
+
+  return (
+    <>
+      <Window title="PROFILE">
+        {profile ? (
+          <View style={{ gap: 2 }}>
+            <Text style={dim}>WEIGHT · {profile.weightKg ?? '—'} kg</Text>
+            <Text style={dim}>HEIGHT · {profile.heightCm ?? '—'} cm</Text>
+            <Text style={dim}>AGE · {profile.age ?? '—'}</Text>
+            <Text style={dim}>SEX · {profile.sex ?? '—'}</Text>
+            <Text style={dim}>ACTIVITY · {activityLabel}</Text>
+            <Text style={[dim, { marginTop: sp.xs }]}>
+              GOALS ABOVE WERE COMPUTED FROM THESE — EDIT ANYTIME.
+            </Text>
+          </View>
+        ) : (
+          <Text style={dim}>NO PROFILE YET</Text>
+        )}
+      </Window>
+      <BevelButton title="SIGN OUT" onPress={signOut} />
+    </>
+  );
+}
 
 interface Loaded {
   kcal: number;
@@ -148,6 +198,8 @@ function SettingsForm({ loaded }: { loaded: Loaded }) {
       <BevelButton title={saved ? 'SAVED ✓' : 'SAVE SETTINGS'} disabled={!valid} onPress={save} />
 
       <BodyweightSection unit={unit} />
+
+      <ProfileSection />
 
       <Window title="ABOUT">
         <Text style={dim}>PIKE TRACKER v1.0</Text>
