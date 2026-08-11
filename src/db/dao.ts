@@ -584,6 +584,26 @@ export function bodyweightDao(db: DbAdapter) {
   };
 }
 
+export function dayNotesDao(db: DbAdapter) {
+  return {
+    /** Freeform notes for a day; '' when none. */
+    async get(date: string): Promise<string> {
+      const row = await db.first<{ notes: string }>(`SELECT notes FROM day_notes WHERE date = ?`, [
+        date,
+      ]);
+      return row?.notes ?? '';
+    },
+
+    async set(date: string, notes: string): Promise<void> {
+      await db.run(
+        `INSERT INTO day_notes (date, notes) VALUES (?, ?)
+         ON CONFLICT(date) DO UPDATE SET notes = excluded.notes`,
+        [date, notes],
+      );
+    },
+  };
+}
+
 export function settingsDao(db: DbAdapter) {
   return {
     async get(key: string): Promise<string | undefined> {

@@ -104,6 +104,13 @@ const MIGRATIONS: string[][] = [
     // {label, amount, unit}, or NULL. Only displayed, never queried.
     `ALTER TABLE foods ADD COLUMN micros TEXT`,
   ],
+  [
+    // Freeform per-day workout notes (one row per day, overwrite).
+    `CREATE TABLE day_notes (
+      date TEXT PRIMARY KEY,
+      notes TEXT NOT NULL DEFAULT ''
+    )`,
+  ],
 ];
 
 export async function migrate(db: DbAdapter): Promise<void> {

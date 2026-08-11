@@ -2,6 +2,7 @@ import { createTestDb } from './testAdapter';
 import { migrate } from './schema';
 import {
   bodyweightDao,
+  dayNotesDao,
   diaryDao,
   exercisesDao,
   foodsDao,
@@ -43,6 +44,29 @@ describe('migrate', () => {
     );
     const row = await db.first<{ micros: string }>(`SELECT micros FROM foods WHERE name='x'`);
     expect(row?.micros).toBe('[]');
+  });
+
+  it('creates the day_notes table (v4)', async () => {
+    const db = await freshDb();
+    await db.run(`INSERT INTO day_notes (date, notes) VALUES ('2026-08-10', 'hi')`);
+    const row = await db.first<{ notes: string }>(`SELECT notes FROM day_notes LIMIT 1`);
+    expect(row?.notes).toBe('hi');
+  });
+});
+
+describe('dayNotesDao', () => {
+  it('returns empty string when no note, upserts and overwrites per date', async () => {
+    const notes = dayNotesDao(await freshDb());
+    expect(await notes.get('2026-08-10')).toBe('');
+
+    await notes.set('2026-08-10', '• leg day\n• squat 105');
+    expect(await notes.get('2026-08-10')).toBe('• leg day\n• squat 105');
+
+    await notes.set('2026-08-10', '• updated');
+    expect(await notes.get('2026-08-10')).toBe('• updated');
+
+    // other dates are independent
+    expect(await notes.get('2026-08-11')).toBe('');
   });
 });
 
