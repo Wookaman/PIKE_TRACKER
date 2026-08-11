@@ -26,6 +26,11 @@ export function Screen({ children, scroll = true }: ScreenProps) {
       <ScrollView
         contentContainerStyle={{ padding: sp.m, paddingBottom: sp.xl * 2, gap: sp.m }}
         keyboardShouldPersistTaps="handled"
+        // iOS: inset content for the on-screen keyboard so a focused field
+        // (e.g. the day-notes box at the bottom) scrolls into view instead of
+        // being hidden behind it.
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="interactive"
       >
         {children}
       </ScrollView>
