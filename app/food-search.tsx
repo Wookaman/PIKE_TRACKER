@@ -139,7 +139,7 @@ export default function FoodSearchScreen() {
   return (
     <Screen>
       <Window title={picking ? 'PICK INGREDIENT' : 'FIND FOOD'} onClose={() => router.back()}>
-        <XPTextInput autoFocus placeholder="C:\> search foods_" value={q} onChangeText={setQuery} />
+        <XPTextInput placeholder="C:\> search foods_" value={q} onChangeText={setQuery} />
       </Window>
 
       {creating ? (
