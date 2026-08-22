@@ -56,6 +56,7 @@ export default function RootLayout() {
         <Stack.Screen name="workout-entry" options={{ presentation: 'modal' }} />
         <Stack.Screen name="progress" options={{ presentation: 'modal' }} />
         <Stack.Screen name="barcode-scan" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
       </Stack>
     </GestureHandlerRootView>
   );

@@ -111,6 +111,15 @@ const MIGRATIONS: string[][] = [
       notes TEXT NOT NULL DEFAULT ''
     )`,
   ],
+  [
+    // Bodyweight becomes canonical kg. Existing rows were stored as the raw
+    // typed number in whatever weightUnit was active and carry no unit of
+    // their own, so this is a BEST-EFFORT fixup: assume they were all logged
+    // in the account's current unit. Safe here because the app is pre-release.
+    `UPDATE bodyweight_entries
+       SET weight = weight * 0.45359237
+     WHERE (SELECT value FROM settings WHERE key = 'weightUnit') = 'lb'`,
+  ],
 ];
 
 export async function migrate(db: DbAdapter): Promise<void> {

@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { RatePicker } from '../src/components/RatePicker';
 import { getDb } from '../src/db';
-import { Activity, ACTIVITY_LABELS, computeGoals, Sex, tdee, WeeklyRate } from '../src/lib/goals';
-import { toCanonicalKg } from '../src/lib/units';
+import { useDbQuery } from '../src/db/useDbQuery';
+import { Activity, ACTIVITY_LABELS, Sex } from '../src/lib/goals';
+import { displayWeight, toCanonicalKg } from '../src/lib/units';
 import { useAppStore } from '../src/state/appStore';
+import { loadProfile, ProfileStats, recomputeAndSaveGoals } from '../src/state/goalActions';
 import { BevelButton } from '../src/ui/BevelButton';
 import { Screen } from '../src/ui/Screen';
 import { Window } from '../src/ui/Window';
@@ -15,64 +16,64 @@ import { dim, sp } from '../src/ui/theme';
 
 const ACTIVITIES: Activity[] = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
 
-export default function Onboarding() {
+export default function EditProfileScreen() {
+  const router = useRouter();
+  const loaded = useDbQuery(
+    async (db) => ({
+      profile: await loadProfile(),
+      unit: (await db.settings.get('weightUnit')) ?? 'kg',
+    }),
+    [],
+  );
+
+  if (!loaded) {
+    return (
+      <Screen>
+        <Window title="EDIT PROFILE" onClose={() => router.back()}>
+          <Text style={dim}>LOADING…</Text>
+        </Window>
+      </Screen>
+    );
+  }
+  return <EditProfileForm profile={loaded.profile} unit={loaded.unit} />;
+}
+
+function EditProfileForm({ profile, unit }: { profile: ProfileStats; unit: string }) {
   const router = useRouter();
   const bump = useAppStore((s) => s.bump);
-  const [unit, setUnit] = useState<'kg' | 'lb'>('kg');
-  const [weight, setWeight] = useState('');
-  const [height, setHeight] = useState('');
-  const [age, setAge] = useState('');
-  const [sex, setSex] = useState<Sex>('male');
-  const [activity, setActivity] = useState<Activity | undefined>(undefined);
-  const [rate, setRate] = useState<WeeklyRate>(0);
+
+  const [weight, setWeight] = useState(
+    profile.complete ? String(displayWeight(profile.weightKg, unit)) : '',
+  );
+  const [height, setHeight] = useState(profile.complete ? String(profile.heightCm) : '');
+  const [age, setAge] = useState(profile.complete ? String(profile.age) : '');
+  const [sex, setSex] = useState<Sex>(profile.sex);
+  const [activity, setActivity] = useState<Activity | undefined>(profile.activity);
 
   const w = Number(weight);
   const h = Number(height);
   const a = Number(age);
   const valid = [w, h, a].every((n) => Number.isFinite(n) && n > 0);
 
-  const weightKg = toCanonicalKg(w, unit);
-  // Before the stats are filled in there is nothing to judge a rate against,
-  // so leave every option selectable rather than disabling them wrongly.
-  const tdeeValue = valid
-    ? tdee({ weightKg, heightCm: h, age: a, sex, activity })
-    : Number.POSITIVE_INFINITY;
-
-  const finish = async () => {
+  const save = async () => {
     if (!valid) return;
-    const goals = computeGoals({ weightKg, heightCm: h, age: a, sex, activity, rate });
+    const weightKg = toCanonicalKg(w, unit);
     const s = getDb().settings;
-    await s.set('kcalGoal', String(goals.kcal));
-    await s.set('proteinGoal', String(goals.protein));
-    await s.set('carbsGoal', String(goals.carbs));
-    await s.set('fatGoal', String(goals.fat));
-    await s.set('weightUnit', unit);
-    await s.set('weightGoalRate', String(rate));
-    await s.set('goalSource', 'computed');
     await s.set('profileWeightKg', String(Math.round(weightKg * 10) / 10));
     await s.set('profileHeightCm', String(h));
     await s.set('profileAge', String(a));
     await s.set('profileSex', sex);
     await s.set('profileActivity', activity ?? '');
-    await s.set('onboardingComplete', '1');
+    // Saving a profile edit is deliberate, so the target moves with it.
+    await recomputeAndSaveGoals();
     haptics.success();
     bump();
-    router.replace('/(tabs)');
+    router.back();
   };
 
   return (
     <Screen>
-      <Window title="UNITS">
-        <View style={{ gap: sp.s }}>
-          <Text style={dim}>HOW SHOULD WEIGHTS BE SHOWN?</Text>
-          <View style={{ flexDirection: 'row', gap: sp.s }}>
-            <BevelButton title="KG" small active={unit === 'kg'} onPress={() => setUnit('kg')} style={{ flex: 1 }} />
-            <BevelButton title="LB" small active={unit === 'lb'} onPress={() => setUnit('lb')} style={{ flex: 1 }} />
-          </View>
-        </View>
-      </Window>
-
-      <Window title="ABOUT YOU">
+      <Window title="EDIT PROFILE" onClose={() => router.back()}>
         <View style={{ gap: sp.s }}>
           <Text style={dim}>WEIGHT ({unit.toUpperCase()})</Text>
           <XPTextInput keyboardType="decimal-pad" value={weight} onChangeText={setWeight} />
@@ -88,7 +89,7 @@ export default function Onboarding() {
         </View>
       </Window>
 
-      <Window title="ACTIVITY (OPTIONAL)">
+      <Window title="ACTIVITY">
         <View style={{ gap: sp.s }}>
           {ACTIVITIES.map((act) => (
             <BevelButton
@@ -99,18 +100,12 @@ export default function Onboarding() {
               onPress={() => setActivity((cur) => (cur === act ? undefined : act))}
             />
           ))}
-          <Text style={dim}>SKIP = SEDENTARY</Text>
+          <Text style={dim}>NONE SELECTED = SEDENTARY</Text>
         </View>
       </Window>
 
-      <Window title="GOAL">
-        <View style={{ gap: sp.s }}>
-          <Text style={dim}>WEEKLY WEIGHT TARGET — SETS YOUR CALORIES</Text>
-          <RatePicker value={rate} onChange={setRate} tdeeValue={tdeeValue} sex={sex} unit={unit} />
-        </View>
-      </Window>
-
-      <BevelButton title="FINISH SETUP" disabled={!valid} onPress={finish} />
+      <Text style={dim}>SAVING UPDATES YOUR CALORIE TARGET.</Text>
+      <BevelButton title="SAVE PROFILE" disabled={!valid} onPress={save} />
     </Screen>
   );
 }

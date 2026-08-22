@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useDbQuery } from '../src/db/useDbQuery';
 import { sessionE1RM } from '../src/lib/strength';
+import { displayWeight } from '../src/lib/units';
 import { SetEntry } from '../src/lib/types';
 import { useAppStore } from '../src/state/appStore';
 import { BevelButton } from '../src/ui/BevelButton';
@@ -18,15 +19,16 @@ export default function ProgressScreen() {
   const router = useRouter();
   const tick = useAppStore((s) => s.tick);
 
-  const unit = (
-    useDbQuery(async (db) => (await db.settings.get('weightUnit')) ?? 'kg', [tick]) ?? 'kg'
-  ).toUpperCase();
+  const unitRaw =
+    useDbQuery(async (db) => (await db.settings.get('weightUnit')) ?? 'kg', [tick]) ?? 'kg';
+  const unit = unitRaw.toUpperCase();
 
   const bodyweight =
     useDbQuery(async (db) => {
       const hist = await db.bodyweight.history();
-      return hist.map((h): ChartPoint => ({ label: shortDate(h.date), value: h.weight }));
-    }, [tick]) ?? [];
+      // Stored in kg; convert for display.
+      return hist.map((h): ChartPoint => ({ label: shortDate(h.date), value: displayWeight(h.weight, unitRaw) }));
+    }, [tick, unitRaw]) ?? [];
 
   const exercises = useDbQuery((db) => db.workouts.loggedExercises(), [tick]) ?? [];
 
