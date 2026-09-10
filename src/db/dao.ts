@@ -1,3 +1,4 @@
+import { Micro } from '../lib/off';
 import { MuscleId, Per100, Serving, WorkoutSets } from '../lib/types';
 import { DbAdapter } from './adapter';
 
@@ -12,6 +13,7 @@ export interface FoodRow {
   source: FoodSource;
   barcode?: string;
   per100: Per100;
+  micros?: Micro[];
 }
 
 export interface FoodInput {
@@ -20,6 +22,7 @@ export interface FoodInput {
   source: FoodSource;
   barcode?: string;
   per100: Per100;
+  micros?: Micro[];
 }
 
 export interface RecipeRow {
@@ -86,6 +89,8 @@ export interface WorkoutEntryRow {
   secondary: MuscleId[];
   sets: WorkoutSets;
   notes?: string;
+  /** Per-limb logging: total volume counts both sides. */
+  unilateral: boolean;
 }
 
 interface RawFood {
@@ -101,10 +106,11 @@ interface RawFood {
   fiber_100g: number | null;
   sugar_100g: number | null;
   sodium_mg_100g: number | null;
+  micros: string | null;
 }
 
 const FOOD_COLS =
-  'id, name, brand, source, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g';
+  'id, name, brand, source, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g, micros';
 
 function toFoodRow(r: RawFood): FoodRow {
   return {
@@ -122,6 +128,7 @@ function toFoodRow(r: RawFood): FoodRow {
       sugar: r.sugar_100g ?? undefined,
       sodiumMg: r.sodium_mg_100g ?? undefined,
     },
+    micros: r.micros ? (JSON.parse(r.micros) as Micro[]) : undefined,
   };
 }
 
@@ -147,8 +154,8 @@ export function foodsDao(db: DbAdapter) {
 
     async insert(f: FoodInput): Promise<number> {
       const result = await db.run(
-        `INSERT INTO foods (name, brand, source, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO foods (name, brand, source, barcode, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g, micros)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           f.name,
           f.brand ?? null,
@@ -161,6 +168,7 @@ export function foodsDao(db: DbAdapter) {
           f.per100.fiber ?? null,
           f.per100.sugar ?? null,
           f.per100.sodiumMg ?? null,
+          f.micros && f.micros.length > 0 ? JSON.stringify(f.micros) : null,
         ],
       );
       return result.lastInsertRowId;
@@ -168,7 +176,7 @@ export function foodsDao(db: DbAdapter) {
 
     async update(id: number, f: FoodInput): Promise<void> {
       await db.run(
-        `UPDATE foods SET name=?, brand=?, source=?, barcode=?, kcal_100g=?, protein_100g=?, carbs_100g=?, fat_100g=?, fiber_100g=?, sugar_100g=?, sodium_mg_100g=?
+        `UPDATE foods SET name=?, brand=?, source=?, barcode=?, kcal_100g=?, protein_100g=?, carbs_100g=?, fat_100g=?, fiber_100g=?, sugar_100g=?, sodium_mg_100g=?, micros=?
          WHERE id=?`,
         [
           f.name,
@@ -182,6 +190,7 @@ export function foodsDao(db: DbAdapter) {
           f.per100.fiber ?? null,
           f.per100.sugar ?? null,
           f.per100.sodiumMg ?? null,
+          f.micros && f.micros.length > 0 ? JSON.stringify(f.micros) : null,
           id,
         ],
       );
@@ -455,6 +464,7 @@ export function workoutsDao(db: DbAdapter) {
     exercise_id: number;
     sets: string;
     notes: string | null;
+    unilateral: number;
     name: string;
     category: ExerciseCategory;
     primary_muscles: string;
@@ -464,7 +474,7 @@ export function workoutsDao(db: DbAdapter) {
   return {
     async forDate(dateKey: string): Promise<WorkoutEntryRow[]> {
       const rows = await db.all<RawWorkout>(
-        `SELECT w.id, w.date, w.exercise_id, w.sets, w.notes,
+        `SELECT w.id, w.date, w.exercise_id, w.sets, w.notes, w.unilateral,
                 e.name, e.category, e.primary_muscles, e.secondary_muscles
          FROM workout_entries w JOIN exercises e ON e.id = w.exercise_id
          WHERE w.date = ? ORDER BY w.id`,
@@ -480,27 +490,116 @@ export function workoutsDao(db: DbAdapter) {
         secondary: JSON.parse(r.secondary_muscles) as MuscleId[],
         sets: JSON.parse(r.sets) as WorkoutSets,
         notes: r.notes ?? undefined,
+        unilateral: r.unilateral === 1,
       }));
     },
 
-    async add(e: { date: string; exerciseId: number; sets: WorkoutSets; notes?: string }): Promise<number> {
+    async add(e: {
+      date: string;
+      exerciseId: number;
+      sets: WorkoutSets;
+      notes?: string;
+      unilateral?: boolean;
+    }): Promise<number> {
       const result = await db.run(
-        `INSERT INTO workout_entries (date, exercise_id, sets, notes) VALUES (?, ?, ?, ?)`,
-        [e.date, e.exerciseId, JSON.stringify(e.sets), e.notes ?? null],
+        `INSERT INTO workout_entries (date, exercise_id, sets, notes, unilateral) VALUES (?, ?, ?, ?, ?)`,
+        [e.date, e.exerciseId, JSON.stringify(e.sets), e.notes ?? null, e.unilateral ? 1 : 0],
       );
       return result.lastInsertRowId;
     },
 
-    async update(id: number, patch: { sets: WorkoutSets; notes?: string }): Promise<void> {
-      await db.run(`UPDATE workout_entries SET sets=?, notes=? WHERE id=?`, [
+    async update(
+      id: number,
+      patch: { sets: WorkoutSets; notes?: string; unilateral?: boolean },
+    ): Promise<void> {
+      await db.run(`UPDATE workout_entries SET sets=?, notes=?, unilateral=? WHERE id=?`, [
         JSON.stringify(patch.sets),
         patch.notes ?? null,
+        patch.unilateral ? 1 : 0,
         id,
       ]);
     },
 
     async remove(id: number): Promise<void> {
       await db.run(`DELETE FROM workout_entries WHERE id = ?`, [id]);
+    },
+
+    /** Most recent entry for this exercise strictly before dateKey. */
+    async lastBefore(
+      exerciseId: number,
+      dateKey: string,
+    ): Promise<{ date: string; sets: WorkoutSets } | undefined> {
+      const row = await db.first<{ date: string; sets: string }>(
+        `SELECT date, sets FROM workout_entries
+         WHERE exercise_id = ? AND date < ?
+         ORDER BY date DESC, id DESC LIMIT 1`,
+        [exerciseId, dateKey],
+      );
+      return row ? { date: row.date, sets: JSON.parse(row.sets) as WorkoutSets } : undefined;
+    },
+
+    /** Every session for one exercise, oldest first (for progress charts). */
+    async historyForExercise(exerciseId: number): Promise<{ date: string; sets: WorkoutSets }[]> {
+      const rows = await db.all<{ date: string; sets: string }>(
+        `SELECT date, sets FROM workout_entries WHERE exercise_id = ? ORDER BY date, id`,
+        [exerciseId],
+      );
+      return rows.map((r) => ({ date: r.date, sets: JSON.parse(r.sets) as WorkoutSets }));
+    },
+
+    /** Distinct strength exercises the user has actually logged. */
+    async loggedExercises(): Promise<{ id: number; name: string }[]> {
+      return db.all<{ id: number; name: string }>(
+        `SELECT DISTINCT w.exercise_id AS id, e.name
+         FROM workout_entries w JOIN exercises e ON e.id = w.exercise_id
+         WHERE e.category = 'strength'
+         ORDER BY e.name`,
+      );
+    },
+  };
+}
+
+export function bodyweightDao(db: DbAdapter) {
+  return {
+    /** Upsert one entry per day (overwrite the same date). */
+    async set(date: string, weight: number): Promise<void> {
+      await db.run(
+        `INSERT INTO bodyweight_entries (date, weight) VALUES (?, ?)
+         ON CONFLICT(date) DO UPDATE SET weight = excluded.weight`,
+        [date, weight],
+      );
+    },
+
+    async latest(): Promise<{ date: string; weight: number } | undefined> {
+      return db.first<{ date: string; weight: number }>(
+        `SELECT date, weight FROM bodyweight_entries ORDER BY date DESC LIMIT 1`,
+      );
+    },
+
+    async history(): Promise<{ date: string; weight: number }[]> {
+      return db.all<{ date: string; weight: number }>(
+        `SELECT date, weight FROM bodyweight_entries ORDER BY date`,
+      );
+    },
+  };
+}
+
+export function dayNotesDao(db: DbAdapter) {
+  return {
+    /** Freeform notes for a day; '' when none. */
+    async get(date: string): Promise<string> {
+      const row = await db.first<{ notes: string }>(`SELECT notes FROM day_notes WHERE date = ?`, [
+        date,
+      ]);
+      return row?.notes ?? '';
+    },
+
+    async set(date: string, notes: string): Promise<void> {
+      await db.run(
+        `INSERT INTO day_notes (date, notes) VALUES (?, ?)
+         ON CONFLICT(date) DO UPDATE SET notes = excluded.notes`,
+        [date, notes],
+      );
     },
   };
 }

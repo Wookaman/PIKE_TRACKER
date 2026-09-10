@@ -7,10 +7,20 @@ Built with Expo / React Native — runs on iPhone, Android, and the web.
 
 ## Features
 
+- **First-launch setup** — a local, on-device account (Sign Up / Log In, no
+  server); session persists across restarts. Onboarding collects weight,
+  height, age, sex, and activity, then computes starting calorie + macro
+  goals (Mifflin–St Jeor) that you can still adjust manually. Forgotten
+  passwords recover via a local security question. Credentials are stored
+  hashed in the device keychain; fitness data stays in on-device SQLite.
 - **Calorie diary** — log foods per day, browse past and future days, log in
   advance. ~180 seeded common foods with real per-100g macros, grams / oz /
   per-food servings ("1 slice", "1 cup"), custom foods, and online search via
   Open Food Facts (results cached locally).
+- **Barcode scanning** — scan a product barcode with the phone camera
+  (Open Food Facts lookup) to log it instantly; an expandable NUTRIENTS
+  section shows the micronutrient breakdown (saturated fat, salt, vitamins,
+  minerals…) per 100 g.
 - **Recipes** — build recipes from ingredients, get per-serving macros, log by
   servings.
 - **Workout log** — same daily calendar, ~70 seeded exercises with muscle

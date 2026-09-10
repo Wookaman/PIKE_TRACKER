@@ -31,6 +31,11 @@ describe('mapOffProduct', () => {
         sugar: 9.2,
         sodiumMg: 430,
       },
+      micros: [
+        { label: 'Fiber', amount: 6, unit: 'g' },
+        { label: 'Sugars', amount: 9.2, unit: 'g' },
+        { label: 'Sodium', amount: 430, unit: 'mg' },
+      ],
     });
   });
 
@@ -74,5 +79,48 @@ describe('mapOffProduct', () => {
     expect(food?.brand).toBeUndefined();
     expect(food?.per100.fiber).toBeUndefined();
     expect(food?.per100.sodiumMg).toBeUndefined();
+  });
+});
+
+describe('mapOffProduct micros', () => {
+  const base = {
+    product_name: 'Test bar',
+    nutriments: {
+      'energy-kcal_100g': 400,
+      proteins_100g: 20,
+      carbohydrates_100g: 40,
+      fat_100g: 15,
+      'saturated-fat_100g': 6,
+      sodium_100g: 0.4,
+      calcium_100g: 0.12,
+      'vitamin-c_100g': 0.06,
+      'vitamin-a_100g': 0.0008,
+    },
+  };
+
+  it('extracts curated micronutrients with display units and scaling', () => {
+    const micros = mapOffProduct(base)!.micros;
+    const byLabel = Object.fromEntries(micros.map((m) => [m.label, m]));
+    expect(byLabel['Saturated fat']).toEqual({ label: 'Saturated fat', amount: 6, unit: 'g' });
+    expect(byLabel['Sodium']).toEqual({ label: 'Sodium', amount: 400, unit: 'mg' });
+    expect(byLabel['Calcium']).toEqual({ label: 'Calcium', amount: 120, unit: 'mg' });
+    expect(byLabel['Vitamin C']).toEqual({ label: 'Vitamin C', amount: 60, unit: 'mg' });
+    expect(byLabel['Vitamin A']).toEqual({ label: 'Vitamin A', amount: 800, unit: 'µg' });
+  });
+
+  it('omits absent micronutrients and returns [] when none present', () => {
+    const micros = mapOffProduct({
+      product_name: 'Plain',
+      nutriments: { 'energy-kcal_100g': 100, proteins_100g: 1, carbohydrates_100g: 1, fat_100g: 1 },
+    })!.micros;
+    expect(micros).toEqual([]);
+  });
+
+  it('rounds micro amounts to at most 2 decimals', () => {
+    const micros = mapOffProduct({
+      product_name: 'Rnd',
+      nutriments: { 'energy-kcal_100g': 100, proteins_100g: 1, carbohydrates_100g: 1, fat_100g: 1, iron_100g: 0.0000123 },
+    })!.micros;
+    expect(micros.find((m) => m.label === 'Iron')?.amount).toBe(0.01);
   });
 });

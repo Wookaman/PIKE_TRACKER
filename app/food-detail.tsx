@@ -100,11 +100,21 @@ function DetailForm({
   const [qtyText, setQtyText] = useState(entry ? String(entry.qty) : servings.length > 0 ? '1' : '100');
   const [meal, setMeal] = useState<Meal>(entry?.meal ?? fallbackMeal);
 
+  const [showNutrients, setShowNutrients] = useState(false);
+
   const unit = units[Math.min(unitIndex, units.length - 1)];
   const qty = Number(qtyText);
   const valid = Number.isFinite(qty) && qty > 0;
   const grams = valid ? gramsFor(qty, unit) : 0;
   const macros = macrosForGrams(food.per100, grams);
+
+  // Micronutrient list: prefer the stored OFF micros; otherwise fall back to
+  // whatever per-100g extras the food carries.
+  const extras: { label: string; amount: number; unit: string }[] = [];
+  if (food.per100.fiber !== undefined) extras.push({ label: 'Fiber', amount: food.per100.fiber, unit: 'g' });
+  if (food.per100.sugar !== undefined) extras.push({ label: 'Sugars', amount: food.per100.sugar, unit: 'g' });
+  if (food.per100.sodiumMg !== undefined) extras.push({ label: 'Sodium', amount: food.per100.sodiumMg, unit: 'mg' });
+  const microList = food.micros && food.micros.length > 0 ? food.micros : extras;
 
   const save = async () => {
     if (!valid) return;
@@ -137,6 +147,47 @@ function DetailForm({
         <Text style={dim}>
           {Math.round(food.per100.kcal)} kcal / 100 g · P {food.per100.protein} · C {food.per100.carbs} · F {food.per100.fat}
         </Text>
+      </Window>
+
+      <Window
+        title="NUTRIENTS"
+        right={
+          <BevelButton
+            title={showNutrients ? '▴' : '▾'}
+            small
+            onPress={() => setShowNutrients((v) => !v)}
+            style={{ paddingVertical: 2, paddingHorizontal: 10 }}
+          />
+        }
+      >
+        {showNutrients ? (
+          microList.length > 0 ? (
+            <SunkenPanel>
+              {microList.map((m, i) => (
+                <View
+                  key={`${m.label}-${i}`}
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    paddingHorizontal: sp.m,
+                    paddingVertical: 6,
+                    borderBottomWidth: 1,
+                    borderBottomColor: c.surface,
+                  }}
+                >
+                  <Text style={dim}>{m.label}</Text>
+                  <Text style={data}>
+                    {m.amount} {m.unit}
+                  </Text>
+                </View>
+              ))}
+            </SunkenPanel>
+          ) : (
+            <Text style={dim}>NO MICRONUTRIENT DATA</Text>
+          )
+        ) : (
+          <Text style={dim}>PER 100 G — TAP ▾ TO EXPAND</Text>
+        )}
       </Window>
 
       <Window title="AMOUNT">

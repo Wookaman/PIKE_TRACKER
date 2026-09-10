@@ -21,7 +21,7 @@ export default function ExerciseSearchScreen() {
   return (
     <Screen>
       <Window title="FIND EXERCISE" onClose={() => router.back()}>
-        <XPTextInput autoFocus placeholder="C:\> search exercises_" value={q} onChangeText={setQ} />
+        <XPTextInput placeholder="C:\> search exercises_" value={q} onChangeText={setQ} />
       </Window>
 
       <BevelButton

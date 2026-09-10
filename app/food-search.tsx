@@ -90,6 +90,7 @@ export default function FoodSearchScreen() {
       barcode: f.barcode,
       source: 'off',
       per100: f.per100,
+      micros: f.micros,
     });
     openDetail(id);
   };
@@ -138,7 +139,7 @@ export default function FoodSearchScreen() {
   return (
     <Screen>
       <Window title={picking ? 'PICK INGREDIENT' : 'FIND FOOD'} onClose={() => router.back()}>
-        <XPTextInput autoFocus placeholder="C:\> search foods_" value={q} onChangeText={setQuery} />
+        <XPTextInput placeholder="C:\> search foods_" value={q} onChangeText={setQuery} />
       </Window>
 
       {creating ? (
@@ -162,7 +163,17 @@ export default function FoodSearchScreen() {
           </View>
         </Window>
       ) : (
-        <BevelButton title="+ CREATE FOOD" small onPress={() => setCreating(true)} />
+        <View style={{ flexDirection: 'row', gap: sp.s }}>
+          <BevelButton title="+ CREATE FOOD" small onPress={() => setCreating(true)} style={{ flex: 1 }} />
+          {!picking ? (
+            <BevelButton
+              title="SCAN"
+              small
+              onPress={() => router.push({ pathname: '/barcode-scan', params: { meal: meal ?? 'snacks' } })}
+              style={{ flex: 1 }}
+            />
+          ) : null}
+        </View>
       )}
 
       {recipes.length > 0 ? (

@@ -83,6 +83,43 @@ const MIGRATIONS: string[][] = [
       value TEXT NOT NULL
     )`,
   ],
+  [
+    // Unilateral: the logged weight is per-limb, so total volume counts both
+    // sides (doubles). Stored per workout entry, alongside the sets JSON.
+    `ALTER TABLE workout_entries ADD COLUMN unilateral INTEGER NOT NULL DEFAULT 0`,
+  ],
+  [
+    // Bodyweight time series: one entry per day (date UNIQUE = overwrite).
+    `CREATE TABLE bodyweight_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL UNIQUE,
+      weight REAL NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    // Speeds up per-exercise history/last-attempt lookups (progress charts).
+    `CREATE INDEX idx_workout_exercise ON workout_entries(exercise_id)`,
+  ],
+  [
+    // Micronutrient breakdown for OFF-sourced foods: JSON array of
+    // {label, amount, unit}, or NULL. Only displayed, never queried.
+    `ALTER TABLE foods ADD COLUMN micros TEXT`,
+  ],
+  [
+    // Freeform per-day workout notes (one row per day, overwrite).
+    `CREATE TABLE day_notes (
+      date TEXT PRIMARY KEY,
+      notes TEXT NOT NULL DEFAULT ''
+    )`,
+  ],
+  [
+    // Bodyweight becomes canonical kg. Existing rows were stored as the raw
+    // typed number in whatever weightUnit was active and carry no unit of
+    // their own, so this is a BEST-EFFORT fixup: assume they were all logged
+    // in the account's current unit. Safe here because the app is pre-release.
+    `UPDATE bodyweight_entries
+       SET weight = weight * 0.45359237
+     WHERE (SELECT value FROM settings WHERE key = 'weightUnit') = 'lb'`,
+  ],
 ];
 
 export async function migrate(db: DbAdapter): Promise<void> {

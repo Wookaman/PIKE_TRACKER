@@ -1,5 +1,7 @@
 import { DbAdapter } from './adapter';
 import {
+  bodyweightDao,
+  dayNotesDao,
   diaryDao,
   exercisesDao,
   foodsDao,
@@ -17,6 +19,8 @@ export interface Db {
   exercises: ReturnType<typeof exercisesDao>;
   workouts: ReturnType<typeof workoutsDao>;
   settings: ReturnType<typeof settingsDao>;
+  bodyweight: ReturnType<typeof bodyweightDao>;
+  dayNotes: ReturnType<typeof dayNotesDao>;
 }
 
 /** Migrate + wire DAOs over any adapter. Pure of native imports. */
@@ -30,5 +34,7 @@ export async function buildDb(adapter: DbAdapter): Promise<Db> {
     exercises: exercisesDao(adapter),
     workouts: workoutsDao(adapter),
     settings: settingsDao(adapter),
+    bodyweight: bodyweightDao(adapter),
+    dayNotes: dayNotesDao(adapter),
   };
 }

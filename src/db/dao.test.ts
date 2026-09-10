@@ -1,6 +1,8 @@
 import { createTestDb } from './testAdapter';
 import { migrate } from './schema';
 import {
+  bodyweightDao,
+  dayNotesDao,
   diaryDao,
   exercisesDao,
   foodsDao,
@@ -25,6 +27,63 @@ describe('migrate', () => {
     expect(v).toBeGreaterThan(0);
     await migrate(db);
     expect(await db.userVersion()).toBe(v);
+  });
+
+  it('creates the bodyweight table (v2)', async () => {
+    const db = await freshDb();
+    // Would throw "no such table" if the v2 migration did not run.
+    await db.run(`INSERT INTO bodyweight_entries (date, weight) VALUES ('2026-07-19', 80)`);
+    const row = await db.first<{ weight: number }>(`SELECT weight FROM bodyweight_entries LIMIT 1`);
+    expect(row?.weight).toBe(80);
+  });
+
+  it('adds the foods.micros column (v3)', async () => {
+    const db = await freshDb();
+    await db.run(
+      `INSERT INTO foods (name, source, kcal_100g, protein_100g, carbs_100g, fat_100g, micros) VALUES ('x','off',1,1,1,1,'[]')`,
+    );
+    const row = await db.first<{ micros: string }>(`SELECT micros FROM foods WHERE name='x'`);
+    expect(row?.micros).toBe('[]');
+  });
+
+  it('creates the day_notes table (v4)', async () => {
+    const db = await freshDb();
+    await db.run(`INSERT INTO day_notes (date, notes) VALUES ('2026-08-10', 'hi')`);
+    const row = await db.first<{ notes: string }>(`SELECT notes FROM day_notes LIMIT 1`);
+    expect(row?.notes).toBe('hi');
+  });
+});
+
+describe('dayNotesDao', () => {
+  it('returns empty string when no note, upserts and overwrites per date', async () => {
+    const notes = dayNotesDao(await freshDb());
+    expect(await notes.get('2026-08-10')).toBe('');
+
+    await notes.set('2026-08-10', '• leg day\n• squat 105');
+    expect(await notes.get('2026-08-10')).toBe('• leg day\n• squat 105');
+
+    await notes.set('2026-08-10', '• updated');
+    expect(await notes.get('2026-08-10')).toBe('• updated');
+
+    // other dates are independent
+    expect(await notes.get('2026-08-11')).toBe('');
+  });
+});
+
+describe('bodyweightDao', () => {
+  it('upserts one entry per day (overwrite) and reads latest + history', async () => {
+    const bw = bodyweightDao(await freshDb());
+    expect(await bw.latest()).toBeUndefined();
+
+    await bw.set('2026-07-17', 80);
+    await bw.set('2026-07-18', 79.5);
+    await bw.set('2026-07-18', 79.2); // same day -> overwrite
+
+    expect(await bw.latest()).toEqual({ date: '2026-07-18', weight: 79.2 });
+    expect(await bw.history()).toEqual([
+      { date: '2026-07-17', weight: 80 },
+      { date: '2026-07-18', weight: 79.2 },
+    ]);
   });
 });
 
@@ -67,6 +126,25 @@ describe('foodsDao', () => {
     expect(await foods.servingsFor(id)).toEqual([{ label: '1 slice', grams: 28 }]);
     await foods.setServings(id, [{ label: '1 thick slice', grams: 40 }]);
     expect(await foods.servingsFor(id)).toEqual([{ label: '1 thick slice', grams: 40 }]);
+  });
+
+  it('round-trips micros json', async () => {
+    const foods = foodsDao(await freshDb());
+    const id = await foods.insert({
+      name: 'Barcode bar',
+      source: 'off',
+      barcode: '123',
+      per100: { kcal: 400, protein: 20, carbs: 40, fat: 15 },
+      micros: [{ label: 'Sodium', amount: 400, unit: 'mg' }],
+    });
+    expect((await foods.getById(id))?.micros).toEqual([{ label: 'Sodium', amount: 400, unit: 'mg' }]);
+
+    const plainId = await foods.insert({
+      name: 'Plain',
+      source: 'seed',
+      per100: { kcal: 1, protein: 1, carbs: 1, fat: 1 },
+    });
+    expect((await foods.getById(plainId))?.micros).toBeUndefined();
   });
 });
 
@@ -172,12 +250,31 @@ describe('workoutsDao', () => {
     expect(day[0].name).toBe('Bench press');
     expect(day[0].primary).toEqual(['chest']);
     expect(day[0].sets).toEqual(sets);
+    expect(day[0].unilateral).toBe(false);
 
     await workouts.update(id, { sets: [{ reps: 5, weight: 70 }] });
     expect((await workouts.forDate('2026-07-15'))[0].sets).toEqual([{ reps: 5, weight: 70 }]);
 
     await workouts.remove(id);
     expect(await workouts.forDate('2026-07-15')).toHaveLength(0);
+  });
+
+  it('round-trips the unilateral flag', async () => {
+    const db = await freshDb();
+    const exercises = exercisesDao(db);
+    const workouts = workoutsDao(db);
+    const exId = await exercises.insertCustom({ name: 'Lateral raise', category: 'strength', primary: ['shoulders'], secondary: [] });
+
+    const id = await workouts.add({
+      date: '2026-07-15',
+      exerciseId: exId,
+      sets: [{ reps: 12, weight: 20 }],
+      unilateral: true,
+    });
+    expect((await workouts.forDate('2026-07-15'))[0].unilateral).toBe(true);
+
+    await workouts.update(id, { sets: [{ reps: 12, weight: 20 }], unilateral: false });
+    expect((await workouts.forDate('2026-07-15'))[0].unilateral).toBe(false);
   });
 
   it('stores cardio entries', async () => {
@@ -187,6 +284,56 @@ describe('workoutsDao', () => {
     const exId = await exercises.insertCustom({ name: 'Treadmill run', category: 'cardio', primary: ['quads'], secondary: ['calves'] });
     await workouts.add({ date: '2026-07-15', exerciseId: exId, sets: { durationMin: 30 } });
     expect((await workouts.forDate('2026-07-15'))[0].sets).toEqual({ durationMin: 30 });
+  });
+
+  it('lastBefore returns the most recent prior entry, or undefined', async () => {
+    const db = await freshDb();
+    const exercises = exercisesDao(db);
+    const workouts = workoutsDao(db);
+    const exId = await exercises.insertCustom({ name: 'Squat', category: 'strength', primary: ['quads'], secondary: [] });
+
+    expect(await workouts.lastBefore(exId, '2026-07-15')).toBeUndefined();
+
+    await workouts.add({ date: '2026-07-10', exerciseId: exId, sets: [{ reps: 5, weight: 100 }] });
+    await workouts.add({ date: '2026-07-13', exerciseId: exId, sets: [{ reps: 5, weight: 105 }] });
+
+    const prev = await workouts.lastBefore(exId, '2026-07-15');
+    expect(prev?.date).toBe('2026-07-13');
+    expect(prev?.sets).toEqual([{ reps: 5, weight: 105 }]);
+
+    // a workout on the given day is not "before" it
+    expect((await workouts.lastBefore(exId, '2026-07-13'))?.date).toBe('2026-07-10');
+  });
+
+  it('historyForExercise returns all sessions ordered by date', async () => {
+    const db = await freshDb();
+    const exercises = exercisesDao(db);
+    const workouts = workoutsDao(db);
+    const exId = await exercises.insertCustom({ name: 'Deadlift', category: 'strength', primary: ['hamstrings'], secondary: [] });
+
+    await workouts.add({ date: '2026-07-13', exerciseId: exId, sets: [{ reps: 5, weight: 140 }] });
+    await workouts.add({ date: '2026-07-10', exerciseId: exId, sets: [{ reps: 5, weight: 130 }] });
+
+    const hist = await workouts.historyForExercise(exId);
+    expect(hist.map((h) => h.date)).toEqual(['2026-07-10', '2026-07-13']);
+    expect(hist[1].sets).toEqual([{ reps: 5, weight: 140 }]);
+  });
+
+  it('loggedExercises returns distinct logged strength exercises', async () => {
+    const db = await freshDb();
+    const exercises = exercisesDao(db);
+    const workouts = workoutsDao(db);
+    const benchId = await exercises.insertCustom({ name: 'Bench', category: 'strength', primary: ['chest'], secondary: [] });
+    const runId = await exercises.insertCustom({ name: 'Run', category: 'cardio', primary: ['quads'], secondary: [] });
+    await exercises.insertCustom({ name: 'Never logged', category: 'strength', primary: ['abs'], secondary: [] });
+
+    await workouts.add({ date: '2026-07-10', exerciseId: benchId, sets: [{ reps: 8, weight: 60 }] });
+    await workouts.add({ date: '2026-07-13', exerciseId: benchId, sets: [{ reps: 8, weight: 62.5 }] });
+    await workouts.add({ date: '2026-07-11', exerciseId: runId, sets: { durationMin: 20 } });
+
+    const logged = await workouts.loggedExercises();
+    // bench appears once (distinct), cardio excluded, never-logged excluded
+    expect(logged).toEqual([{ id: benchId, name: 'Bench' }]);
   });
 });
 
